@@ -31,11 +31,6 @@ if (GIT_FOUND)
   endif()
 endif (GIT_FOUND)
 
-# I am no longer using subversion, having for a more than a few years now
-#   for a while I prefered svn as a tool, the projects that I use for work
-#   moved.  With that said, git is not the only tool for this.  Should I even bother
-#   Supporting anything else?
-
 if (NOT VERSION)
   set(VERSION 0.0.0.1)
 endif()
