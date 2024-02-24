@@ -1,5 +1,6 @@
 *build*
 Testing*
+include/version.hpp
 
 # Prerequisites
 *.d
