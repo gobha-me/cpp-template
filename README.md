@@ -17,13 +17,17 @@ Some features I am baking in and assumptions that I am making.
 * Projects will default to c++20 standard, best supported ATM, this default will change
   * As a note I build clang++ from source and I am using 17.0.6
 * Tests
-  * doctest will be used for writing tests
-    * Empty fixture script for starting and stopping anyservices required for tests
+  * Catch2 will be used for writing tests
+    * Empty fixture script for starting and stopping any services required for tests
     * this will be "baked" into the test/main.cpp and other parts of the tree
       * If anyone finds this useful, but wants to use another framework, I leave it as an exercise for them to replace
-  * Tests are contained in test/<test_name>/test.cpp
-    * This strategy makes adding tests really simple, just focus on the code of the test
-    * On the other hand, if code is already built before doing so cmake -B will have to be run again
+  * Tests in dir test/
+    * CMakeLists loops over dirs in this path
+    * to "force" order of tests prefix in ## - see example names
+    * Can be as simple as test/<test_name>/test.cpp
+        * This strategy makes adding tests really simple, just focus on the code of the test
+        * On the other hand, if code is already built before doing so cmake -B will have to be run again
+        * If need more control over the build process of a Test just add a CMakeLists.txt file in dir
 * Toolchain exist in cmake/toolchain directory default is default.cmake
   * Default Build Type is Debug
   * provide seperate files to enable address or thread sanitizers
