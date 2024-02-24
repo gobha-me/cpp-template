@@ -6,6 +6,13 @@ find_package (Git)
 #  which has an effect on dev build test cycle for a developer
 
 if (GIT_FOUND)
+  # Retrieve nearest tag
+  execute_process(
+    COMMAND ${GIT_EXECUTABLE} describe --tags
+    WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
+    RESULT_VARIABLE GIT_RESULT
+    OUTPUT_VARIABLE GIT_TAG_STR
+  )
   # AM I a tag
   #   Then what is my name and does it match expression \d+(\.\d+){0,3}
   #     Then VERSION = tag
