@@ -19,14 +19,14 @@ if (GIT_FOUND)
   if (GIT_RESULT AND NOT GIT_RESULT EQUAL 0)
     message(STATUS "No tags found")
   else()
-    string(REGEX MATCH "^[rv]?([0-9]+(\.[0-9]+)+)(-.+)?$" CURRENT_VERSION "${GIT_TAG_STR}")
+    string(REGEX MATCH "^[rv]?([0-9]+([^-][0-9]+)+)((-.+)+)?$" CURRENT_VERSION "${GIT_TAG_STR}")
 
     if (CMAKE_MATCH_1)
       set(VERSION ${CMAKE_MATCH_1})
     endif()
 
     if (CMAKE_MATCH_3) # Use inplace of tweak?
-      set(DIRTY_BRANCH ${CMAKE_MATCH_1})
+      set(DIRTY_BRANCH ${CMAKE_MATCH_3})
     endif()
   endif()
 endif (GIT_FOUND)
