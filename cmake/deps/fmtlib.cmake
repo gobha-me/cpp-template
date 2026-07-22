@@ -7,7 +7,7 @@ else ()
     endif()
 
     if (NOT FMT_TAG)
-        set(FMT_TAG 10.2.1)
+        set(FMT_TAG 11.1.4)
     endif()
 
     include(FetchContent)
