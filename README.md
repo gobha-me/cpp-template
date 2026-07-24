@@ -60,6 +60,11 @@ Some features baked in, and the assumptions behind them:
   * Using a combination of `find_package` and `FetchContent` for managing
     dependencies.
     * Over time, as I build new files, I'll most likely add them here.
+  * **Opt-in, not glob-everything** — each dependency is a recipe file in
+    `cmake/deps/<name>.cmake`, but a recipe is only fetched when its name is
+    listed in `<PROJECT>_DEPS` in the root `CMakeLists.txt`. That list is the
+    single prune point for a new project: drop a name to stop fetching that dep;
+    add a recipe file *and* its name to add one.
 * **Export of the compile database** (`compile_commands.json`) is enabled by
   default.
 

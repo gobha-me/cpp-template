@@ -22,6 +22,10 @@ correctly," not for any one downstream project.
 - **Catch2 v3** for tests, fetched via `FetchContent` (see `cmake/deps/`).
 - Dependencies: `find_package` first, `FetchContent` fallback, **100% CMake**
   (no conan/vcpkg). Keep it that way unless the maintainer asks.
+- **Deps are opt-in via a list, not the filesystem.** A recipe in `cmake/deps/`
+  is fetched only if its name is in `${PROJECT_NAME}_DEPS` in the root
+  `CMakeLists.txt`. Dropping a file in `cmake/deps/` does **not** activate it;
+  adding a dep means a recipe file **and** a line in that list.
 
 ## Conventions that matter here
 

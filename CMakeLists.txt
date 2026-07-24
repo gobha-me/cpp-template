@@ -28,6 +28,15 @@ endif ()
 find_package(Git REQUIRED) # some deps may require this, depends .. :D
 #message(STATUS "git found: ${GIT_EXECUTABLE} in version ${GIT_VERSION_STRING}")
 
+# Dependencies this project uses. Each name maps to cmake/deps/<name>.cmake
+# (find_package first, FetchContent fallback). This is the prune point for a new
+# project: drop a name to stop fetching that dep.
+set(${PROJECT_NAME}_DEPS
+  catch2    # Catch2 v3 — test framework (test/)
+  fmtlib    # fmt        — formatting   (src/bin)
+  argparse  # argparse   — CLI parsing  (src/bin)
+)
+
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/dependencies.cmake)
 
 add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/src/lib)
