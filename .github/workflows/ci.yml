@@ -7,8 +7,8 @@ name: CI
 #
 # This is the cpp-template family's reference workflow: it hardcodes nothing
 # project-specific. The project name is derived from the checkout directory
-# (see root CMakeLists.txt), so a fork can copy this file verbatim — the only
-# edit is the badge URL slug in README.md.
+# (see root CMakeLists.txt), so a fork copies this file verbatim. The fork-side
+# steps — including the README badge slug — are listed in NEW_PROJECT.md.
 
 on:
   push:

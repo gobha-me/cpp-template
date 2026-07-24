@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/gobha-me/cpp-template/actions/workflows/ci.yml/badge.svg)](https://github.com/gobha-me/cpp-template/actions/workflows/ci.yml)
 
+> **Starting a new project from this?** Follow **[NEW_PROJECT.md](NEW_PROJECT.md)** —
+> an ordered checklist from "copied the tree" to "clean project," with the traps
+> called out. Everything below describes the template as it stands.
+
 The basic idea is to have an easy-button copy/paste starter for new CPP projects.
 I tend to "play" around with some ideas and new features of the language
 outside of "work". CMake is the "standard" project management tool used at work,
@@ -79,18 +83,80 @@ Some features baked in, and the assumptions behind them:
 * **Export of the compile database** (`compile_commands.json`) is enabled by
   default.
 
-## Usage
+## Cheat sheet
+
+**Configure, build, test — and picking a toolchain**
 
 ```bash
-# configure (optionally pick a toolchain, e.g. clang or a sanitizer)
-cmake -B <build-dir> [-DCMAKE_TOOLCHAIN_FILE=<toolchain file>]
+cmake -B build                                                            # $CXX, C++23, Debug
+cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake   # clang
+CXX=clang++ cmake -B build-asan -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/address.cmake
 
-# build
-cmake --build <build-dir> --parallel 4
-
-# test
-ctest --test-dir <build-dir> -V
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 ```
+
+Run these from the repo root — the toolchain paths are relative. You cannot pass
+two toolchain files, so a sanitizer composes with clang via `CXX=`, as above.
+
+**Add a dependency**
+
+```bash
+cp cmake/deps/catch2.cmake cmake/deps/<name>.cmake   # catch2.cmake is the annotated recipe template
+$EDITOR cmake/deps/<name>.cmake                      # find_package first, FetchContent fallback
+$EDITOR CMakeLists.txt                               # add <name> to <PROJECT>_DEPS
+cmake -B build
+```
+
+The recipe file alone does nothing — the list is the switch. A name on the list
+with no recipe is a hard configure error; a recipe not on the list is inert. To
+remove a dependency, delete its name from the list; the file can stay.
+
+**Add a test**
+
+```bash
+mkdir test/40myfeature
+$EDITOR test/40myfeature/test.cpp    # TEST_CASEs only — test/main.cpp provides main()
+cmake -B build && cmake --build build --parallel && ctest --test-dir build
+```
+
+It becomes the target and ctest name `40myfeature-test`; the numeric prefix
+orders the run. **Re-run `cmake -B` after adding a directory** — discovery is a
+configure-time glob. If a test needs custom build control, give it its own
+`test/<dir>/CMakeLists.txt`: it inherits `TEST_NAME` and `SRCS` from the parent
+scope and must define a target named exactly `${TEST_NAME}` (see `test/02example/`).
+
+**Run one test**
+
+```bash
+ctest --test-dir build -N                                              # list them
+ctest --test-dir build -R 20failure-testing-test --output-on-failure   # one, plus its fixtures
+ctest --test-dir build -R 20failure-testing-test -FS . -FC .           # one, fixtures skipped
+
+./build/test/20failure-testing-test --list-tests                       # Catch2 cases within it
+./build/test/20failure-testing-test "[failure]"                        # one case, or a tag
+```
+
+`-R` is a regex match on the test name. Every discovered test carries
+`FIXTURES_REQUIRED runners`, so ctest re-adds `startup` and `shutdown` even when
+you filter — `-R` alone reports **three** tests, not one. `-FS . -FC .` excludes
+the fixtures. Tests with their own `CMakeLists.txt` build into
+`build/test/<dir>/`; the rest land in `build/test/`.
+
+**Cut a release tag**
+
+```bash
+git tag -a v1.2.3 -m "v1.2.3"
+git push origin v1.2.3
+cmake -B build          # the version is read at CONFIGURE time — re-configure or it is stale
+cmake --build build --parallel
+```
+
+The format is enforced: optionally `v`- or `r`-prefixed, then exactly three
+numeric components. `v1.2`, `v1.2.3.4` and `v1.2.3-rc1` are rejected by design
+and fall back to `0.0.0` with a `STATUS` line naming the reason. Between tags,
+`VERSION_TWEAK` counts commits since the tag and `VERSION_DIRTY` flags an unclean
+tree; both land in `include/version.hpp`.
 
 ## Continuous integration
 
@@ -107,5 +173,7 @@ one-sided break is visible on the PR.
 
 **Copying this into a new project:** the workflow hardcodes nothing
 project-specific — the project name is derived from the checkout directory, so
-copy `.github/workflows/ci.yml` verbatim. The only edit is the badge URL above:
-replace `gobha-me/cpp-template` with your `owner/repo`.
+copy `.github/workflows/ci.yml` verbatim, and keep `fetch-depth: 0` or
+`git describe` stops finding tags. The one edit a fork owes CI is the badge URL
+above; that step and everything else a new project must change live in
+[NEW_PROJECT.md](NEW_PROJECT.md).

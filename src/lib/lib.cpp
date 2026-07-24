@@ -4,8 +4,8 @@
 // empty archive teaches nothing. Replace this file (and the add_library()
 // source list in src/lib/CMakeLists.txt) with the project's real sources.
 //
-// The matching header lives in include/ so the include-dir wiring is
-// exercised by the default build + tests.
+// The generated version header in include/ is pulled in below, so the
+// include-dir wiring is exercised by the default build + tests.
 
 #include <version.hpp>
 
