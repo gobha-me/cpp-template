@@ -44,10 +44,24 @@ jobs:
         with:
           fetch-depth: 0    # full history + tags so cmake/version.cmake's `git describe --tags` resolves a real version
 
-      # GitHub's ubuntu-24.04 image already provides g++ and clang++. On a leaner
-      # or self-hosted runner, uncomment to install them:
-      # - name: Install toolchains
-      #   run: sudo apt-get update && sudo apt-get install -y g++ clang
+      # GCC jobs use the preinstalled g++ (13). The clang jobs, however, must NOT
+      # use ubuntu-24.04's stock clang 18: its libstdc++ pairing cannot compile
+      # the C++23 std::expected example (test/20failure-testing) — the same class
+      # of compiler/stdlib break as the documented fmt-under-clang-20 issue. Pin
+      # them to a known-good Clang so "both compilers, always" stays honest. The
+      # symlinks make `clang++` resolve to the pinned version, so clang.cmake's
+      # find_program(clang++) and the sanitizer toolchains' $CXX all pick it up.
+      - name: Install Clang
+        if: ${{ startsWith(matrix.cxx, 'clang') }}
+        env:
+          CLANG_VERSION: "20"
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          sudo ln -sf "/usr/bin/clang-$CLANG_VERSION"   /usr/local/bin/clang
+          sudo ln -sf "/usr/bin/clang++-$CLANG_VERSION" /usr/local/bin/clang++
+          clang++ --version
 
       - name: Configure
         env:

@@ -25,7 +25,11 @@ Some features baked in, and the assumptions behind them:
   `include/version.hpp`. No tags/git falls back to `0.0.0` with a reason. The
   pure parser lives in `cmake/version_parse.cmake` and is self-tested via
   `cmake -P cmake/version_selftest.cmake` (also a ctest: `version-parse-selftest`).
-* **C++23 by default** (GCC 13+ / Clang 17+).
+* **C++23 by default** (GCC 13+ / Clang 19+). Note: the `std::expected` example
+  in `test/20failure-testing` needs a C++23 standard library that provides
+  `<expected>` — GCC 13+'s libstdc++, Clang 19+ with libstdc++, or any Clang with
+  libc++. Clang 18 + libstdc++ (the Ubuntu 24.04 stock pairing) can't build it, so
+  CI pins its Clang jobs to Clang 20.
 * **Compiler respects the environment** — the default toolchain
   (`cmake/toolchain/default.cmake`) takes the compiler from `CXX` / the platform
   default rather than forcing one. Prefer clang? Opt in via a toolchain file:
