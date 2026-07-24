@@ -15,7 +15,8 @@ correctly," not for any one downstream project.
 
 ## Current baseline (keep these in sync if you change them)
 
-- **CMake ≥ 3.28**, **C++23** (GCC 13+ / Clang 17+).
+- **CMake ≥ 3.28**, **C++23** (GCC 13+ / Clang 19+ — see the Clang note under
+  "How to verify a change" for why 19, not 17).
 - **Compiler respects the environment** by default. Do **not** re-introduce a
   forced compiler in `cmake/toolchain/default.cmake`. Prefer clang? That's what
   `cmake/toolchain/clang.cmake` is for (opt-in, like the sanitizer toolchains).
@@ -37,7 +38,8 @@ correctly," not for any one downstream project.
 - **Library pattern** in `src/lib/`: a compiled `STATIC` lib by default
   (toggle `${PROJECT_NAME}_BUILD_LIB`), with the header-only (`INTERFACE`)
   variant shown commented. Keep both patterns present and buildable — the
-  template teaches by having both.
+  template teaches by having both. That is a rule for *this* repo; a project
+  bootstrapped from it picks one and deletes the other (see `NEW_PROJECT.md`).
 - **Tests are auto-discovered**: `test/CMakeLists.txt` loops over `test/*/`.
   A new test is just `test/<name>/test.cpp` (no CMakeLists needed); add a
   `CMakeLists.txt` in the dir only if the test needs custom build control.
@@ -101,6 +103,22 @@ and PRs note what was actually run to verify (per "How to verify" above).
   it. If you change the parsing, add a row to and re-run the self-test:
   `cmake -P cmake/version_selftest.cmake` (also runs in ctest as
   `version-parse-selftest`). Failure-matrix-first, like the other tests.
+- `NEW_PROJECT.md` is **fork-facing**: it instructs a project being bootstrapped
+  out of this template, not this repo. Don't put template-maintenance rules in
+  it, and don't let it drift from the file paths and line numbers it cites.
+- `cmake/check_artifacts.cmake` looks for leftover template artifacts. It runs
+  inverted here (ctest: `artifact-check-selftest`) — every Class-A rule must
+  still MATCH something, because this repo legitimately contains all of them.
+  Rename or delete an artifact that a rule targets and that rule matches
+  nothing, the self-test goes red, and you update the rule to match. A fork that
+  has deleted `NEW_PROJECT.md` runs the same script in plain enforcement mode
+  instead. Class-B rules check wiring that can drift, are never inverted, and
+  must stay green on both sides.
+  **Never write one of the searched-for tokens into prose.** A rule counts hits
+  across all tracked files, so a doc that quotes the token it is hunting keeps
+  that rule green forever, whatever happened to the real artifact. The checker
+  and `NEW_PROJECT.md` are excluded from the scan for exactly this reason; the
+  fix anywhere else is to describe the token, not spell it.
 - Build dirs (`build*/`) are gitignored — don't commit them.
 - The dep pins in `cmake/deps/` are only audited when something breaks on a
   supported compiler; bump deliberately and say why in the commit.

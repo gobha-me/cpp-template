@@ -9,6 +9,24 @@ add_test(
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/version_selftest.cmake
 )
 
+# Leftover-template-artifact check (cmake/check_artifacts.cmake), also standalone.
+# The mode is keyed on NEW_PROJECT.md, whose last checklist step is "delete this
+# file": while it exists we are the template, so the Class-A rules are inverted
+# and assert each still MATCHES something (a rule that matches nothing has rotted
+# and would wave every fork through). Once a bootstrapped project deletes it, the
+# same script becomes a plain enforcement check with nothing to wire up.
+if (EXISTS ${CMAKE_SOURCE_DIR}/NEW_PROJECT.md)
+  add_test(
+    NAME artifact-check-selftest
+    COMMAND ${CMAKE_COMMAND} -DMODE=selftest -P ${CMAKE_SOURCE_DIR}/cmake/check_artifacts.cmake
+  )
+else ()
+  add_test(
+    NAME artifact-check
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/check_artifacts.cmake
+  )
+endif ()
+
 file(GLOB TEST_DIRS ${CMAKE_CURRENT_LIST_DIR}/*)
 
 foreach(TEST_DIR ${TEST_DIRS})
