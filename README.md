@@ -50,6 +50,7 @@ Some features baked in, and the assumptions behind them:
     * `clang.cmake`
     * `address.cmake`
     * `thread.cmake`
+    * `undefined.cmake`
 * **Dependency management**
   * Not using a dedicated dependency manager such as conan.io.
     * Not using one at work at the moment.
