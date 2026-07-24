@@ -98,12 +98,38 @@ What to do with each file:
   > The template ships both on purpose, as a worked example of each. Your project
   > should ship the one it uses.
 
-- [ ] **Link the library.** Nothing currently links `${PROJECT_NAME}::lib` — not
-      the binary, not the tests. Add `PRIVATE ${PROJECT_NAME}::lib` to
-      `src/bin/CMakeLists.txt` and to any test that needs it, or the code you put
-      in `src/lib/` will not be reachable from `main()`.
+- [ ] **Link the library — in two places.** Nothing currently links
+      `${PROJECT_NAME}::lib`; not the binary, not the tests. Until you wire it,
+      anything you put in `src/lib/` is compiled into an archive nobody reads.
 
-  > Being fixed upstream in CT-09 (#10). Until that lands it is yours to wire.
+  In `src/bin/CMakeLists.txt`, add it to the existing call:
+
+  ```cmake
+  target_link_libraries(${PROJECT_NAME}
+    PRIVATE ${PROJECT_NAME}::lib
+    PRIVATE fmt::fmt-header-only
+  )
+  ```
+
+  Tests are the one that bites, because the link line lives in the shared
+  discovery loop rather than next to your test. In `test/CMakeLists.txt`, after
+  the `target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2)` call inside
+  the `foreach`, add:
+
+  ```cmake
+  if (TARGET ${PROJECT_NAME}::lib)
+    target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME}::lib)
+  endif ()
+  ```
+
+  > The `if (TARGET ...)` guard matters: the library target does not exist when
+  > someone configures with `-D<name>_BUILD_LIB=OFF`, and an unguarded link line
+  > turns that into a configure error.
+  >
+  > Skip this and the very first test you write against your own code fails at
+  > link time with `undefined reference`, which reads like a broken build rather
+  > than a missing line. Being fixed upstream in CT-09 (#10); until that lands it
+  > is yours to wire.
 
 ---
 
@@ -166,14 +192,25 @@ What to do with each file:
 ## Step 5 — First build, both compilers
 
 ```bash
-cmake -B build && cmake --build build --parallel && ctest --test-dir build --output-on-failure
+cmake -B build && cmake --build build --parallel \
+  && ctest --test-dir build --output-on-failure -E artifact-check-selftest
 
 cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake \
-  && cmake --build build-clang --parallel && ctest --test-dir build-clang --output-on-failure
+  && cmake --build build-clang --parallel \
+  && ctest --test-dir build-clang --output-on-failure -E artifact-check-selftest
 ```
 
 - [ ] Both green.
 
+> **Why `-E artifact-check-selftest`.** You are between two worlds right now.
+> While `NEW_PROJECT.md` is still here that test runs in template mode, where it
+> asserts the template's demo artifacts are still *present* — and you have spent
+> the last four steps deleting them, so it is failing for the right reason. It
+> is checking this repo's invariants, not your project's. Step 7 deletes this
+> file, which flips the same check into enforcement mode, and then it goes green
+> and stays in your suite for good. Excluding it by name for two steps beats
+> learning to scroll past a red test.
+>
 > Run these from the repo root — the toolchain paths are relative. "Builds on
 > both compilers" is the convention you are inheriting (`AGENTS.md`, "How to
 > verify a change"); CI enforces it, so it is cheaper to find out now.
@@ -206,11 +243,18 @@ cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake \
 - [ ] `cmake -P cmake/check_artifacts.cmake` → prints `CLEAN`
 
   > It reads; it never edits. Every `FAIL` line names a file and line and maps
-  > back to a step above.
+  > back to a step above. Two things it will *not* flag, correctly: the workflow
+  > comment naming the template it came from, and the checker's own list of
+  > search patterns — that file is excluded from its own scan.
 
-- [ ] Push and confirm CI is green: 8 build/test jobs plus `version-parse-selftest`.
 - [ ] `git rm NEW_PROJECT.md && git commit -m "Bootstrap complete"`
+- [ ] `cmake -B build` — re-configure so the flipped check registers
+- [ ] `ctest --test-dir build --output-on-failure` — no exclusions this time, all green
 
-  > Last step on purpose. Deleting this file flips `check_artifacts.cmake` out of
-  > template mode, and from the next configure your test suite gains an
-  > `artifact-check` test that fails if any template leftover ever reappears.
+  > Deleting this file is what flips `check_artifacts.cmake` out of template
+  > mode. After the re-configure, the `artifact-check-selftest` you were
+  > excluding in Step 5 is replaced by an `artifact-check` test that fails if a
+  > template leftover ever reappears — and that one stays in your suite for the
+  > life of the project.
+
+- [ ] Push, and confirm CI is green: 8 build/test jobs plus `version-parse-selftest`.
