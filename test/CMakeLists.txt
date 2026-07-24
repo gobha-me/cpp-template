@@ -15,12 +15,16 @@ foreach(TEST_DIR ${TEST_DIRS})
   cmake_path(GET TEST_DIR FILENAME TEST_NAME_PATH)
   set(TEST_NAME ${TEST_NAME_PATH}-test)
 
+  # Recompute the source list for THIS dir every iteration, before the branch
+  # below. Both branches consume SRCS — the custom-CMakeLists branch inherits it
+  # via add_subdirectory() — so setting it only inside the elseif would leak the
+  # previous iteration's sources into a custom-CMakeLists test dir.
+  file(GLOB SRCS ${TEST_DIR}/*.cpp)
+
   if(EXISTS ${TEST_DIR}/CMakeLists.txt)
     add_subdirectory(${TEST_DIR})
   elseif (EXISTS ${TEST_DIR}/test.cpp)
     message(STATUS "Configuring test setup ${TEST_NAME}")
-
-    file(GLOB SRCS ${TEST_DIR}/*.cpp)
 
     add_executable(${TEST_NAME}
       main.cpp
