@@ -17,7 +17,12 @@ Some features baked in, and the assumptions behind them:
     details of why.
   * This is an easy-button starter that "should" just work out of the box — just
     update the `project()` portion of the file.
-* **Version comes from git tags** (WIP) — see `cmake/version.cmake`.
+* **Version comes from git tags** — `cmake/version.cmake` parses
+  `git describe --tags --dirty` into `MAJOR.MINOR.PATCH`, plus a `VERSION_TWEAK`
+  (commits since the tag) and `VERSION_DIRTY` flag exposed in the generated
+  `include/version.hpp`. No tags/git falls back to `0.0.0` with a reason. The
+  pure parser lives in `cmake/version_parse.cmake` and is self-tested via
+  `cmake -P cmake/version_selftest.cmake` (also a ctest: `version-parse-selftest`).
 * **C++23 by default** (GCC 13+ / Clang 17+).
 * **Compiler respects the environment** — the default toolchain
   (`cmake/toolchain/default.cmake`) takes the compiler from `CXX` / the platform

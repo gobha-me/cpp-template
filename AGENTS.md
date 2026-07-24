@@ -85,6 +85,11 @@ and PRs note what was actually run to verify (per "How to verify" above).
 - `include/version.hpp.in.cmake` is configured into `include/version.hpp` at
   build time; edit the `.in.cmake` source, not the generated file. If you touch
   it, keep the `#include <cstdint>` (std::uint32_t needs it).
+- Version parsing is pure string logic in `cmake/version_parse.cmake`
+  (`parse_git_describe`); `cmake/version.cmake` just runs `git describe` and calls
+  it. If you change the parsing, add a row to and re-run the self-test:
+  `cmake -P cmake/version_selftest.cmake` (also runs in ctest as
+  `version-parse-selftest`). Failure-matrix-first, like the other tests.
 - Build dirs (`build*/`) are gitignored — don't commit them.
 - The dep pins in `cmake/deps/` are only audited when something breaks on a
   supported compiler; bump deliberately and say why in the commit.
