@@ -54,3 +54,20 @@ endforeach()
 # SET FIXTURE DEPENDENCIES
 set_tests_properties(startup PROPERTIES FIXTURES_SETUP runners)
 set_tests_properties(shutdown PROPERTIES FIXTURES_CLEANUP runners)
+
+# The sanitizer smoke test (test/30sanitizer-smoke) deliberately trips the active
+# sanitizer to prove it is actually engaged (CT-03 — the whole point is to catch a
+# silently no-op sanitizer toolchain). ASan/TSan abort the process on the injected
+# bug, i.e. a NONZERO exit, which ctest would otherwise read as failure. So when
+# such a sanitizer is active we assert on its diagnostic instead: the test passes
+# iff the sanitizer's own report appears in the output. This turns "sanitizer
+# engaged" into a green, enforceable signal — and if the sanitizer were ever
+# silenced, the report vanishes and this test goes red. UBSan is recoverable
+# (exits 0) and the default build never runs the bug, so neither needs this.
+if (TARGET 30sanitizer-smoke-test)
+  if (CMAKE_CXX_FLAGS MATCHES "-fsanitize=address")
+    set_tests_properties(30sanitizer-smoke-test PROPERTIES PASS_REGULAR_EXPRESSION "AddressSanitizer")
+  elseif (CMAKE_CXX_FLAGS MATCHES "-fsanitize=thread")
+    set_tests_properties(30sanitizer-smoke-test PROPERTIES PASS_REGULAR_EXPRESSION "ThreadSanitizer")
+  endif ()
+endif ()

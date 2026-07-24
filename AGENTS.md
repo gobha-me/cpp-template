@@ -68,6 +68,17 @@ Both must build clean and pass all tests. A change that only builds on one
 compiler is not done. (This is how the fmt-under-clang-20 breakage was caught —
 build on both, always.)
 
+CI (`.github/workflows/ci.yml`) enforces this on every push and pull request:
+GCC and Clang × {default, address, thread, undefined} toolchains, plus the
+`version-parse-selftest`. A one-compiler change turns that compiler's jobs red,
+so the template can't rot unnoticed — run the commands above locally first.
+
+CI pins its Clang jobs to Clang 20: Ubuntu 24.04's stock Clang 18 cannot compile
+the C++23 `std::expected` example (`test/20failure-testing`) against libstdc++ —
+use Clang 19+ (libstdc++) or any Clang with libc++. Same class of compiler/stdlib
+break as the fmt-under-clang-20 note above; CI surfaced it. If you develop with
+Clang, verify with a version CI would accept, not just whatever `clang++` resolves to.
+
 ## Attribution
 
 Follow the convention used across this org's repos: agent-authored commits

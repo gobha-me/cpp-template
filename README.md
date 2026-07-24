@@ -1,5 +1,7 @@
 # CPP CMake Template Project
 
+[![CI](https://github.com/gobha-me/cpp-template/actions/workflows/ci.yml/badge.svg)](https://github.com/gobha-me/cpp-template/actions/workflows/ci.yml)
+
 The basic idea is to have an easy-button copy/paste starter for new CPP projects.
 I tend to "play" around with some ideas and new features of the language
 outside of "work". CMake is the "standard" project management tool used at work,
@@ -23,7 +25,11 @@ Some features baked in, and the assumptions behind them:
   `include/version.hpp`. No tags/git falls back to `0.0.0` with a reason. The
   pure parser lives in `cmake/version_parse.cmake` and is self-tested via
   `cmake -P cmake/version_selftest.cmake` (also a ctest: `version-parse-selftest`).
-* **C++23 by default** (GCC 13+ / Clang 17+).
+* **C++23 by default** (GCC 13+ / Clang 19+). Note: the `std::expected` example
+  in `test/20failure-testing` needs a C++23 standard library that provides
+  `<expected>` — GCC 13+'s libstdc++, Clang 19+ with libstdc++, or any Clang with
+  libc++. Clang 18 + libstdc++ (the Ubuntu 24.04 stock pairing) can't build it, so
+  CI pins its Clang jobs to Clang 20.
 * **Compiler respects the environment** — the default toolchain
   (`cmake/toolchain/default.cmake`) takes the compiler from `CXX` / the platform
   default rather than forcing one. Prefer clang? Opt in via a toolchain file:
@@ -85,3 +91,21 @@ cmake --build <build-dir> --parallel 4
 # test
 ctest --test-dir <build-dir> -V
 ```
+
+## Continuous integration
+
+`.github/workflows/ci.yml` builds and tests on every push to `main` and every
+pull request, enforcing the "both compilers, always" rule:
+
+* **GCC and Clang** ×
+* the **default** toolchain plus every sanitizer (**address**, **thread**,
+  **undefined**) — 8 build/test jobs in all,
+* plus a fast, dependency-free `version-parse-selftest` job.
+
+A change that only builds on one compiler turns that compiler's jobs red, so a
+one-sided break is visible on the PR.
+
+**Copying this into a new project:** the workflow hardcodes nothing
+project-specific — the project name is derived from the checkout directory, so
+copy `.github/workflows/ci.yml` verbatim. The only edit is the badge URL above:
+replace `gobha-me/cpp-template` with your `owner/repo`.
