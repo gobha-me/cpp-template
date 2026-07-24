@@ -26,9 +26,10 @@ correctly," not for any one downstream project.
 ## Conventions that matter here
 
 - **Toolchains are opt-in files** in `cmake/toolchain/`: `default.cmake`
-  (respects env), `clang.cmake`, `address.cmake`, `thread.cmake`. To add a
-  configuration, add a file that `include()`s `default.cmake` and layers its
-  flags — don't edit `default.cmake` to force a specific setup.
+  (respects env), `clang.cmake`, `address.cmake`, `thread.cmake`,
+  `undefined.cmake`. To add a configuration, add a file that `include()`s
+  `default.cmake` and layers its flags — don't edit `default.cmake` to force a
+  specific setup.
 - **Library pattern** in `src/lib/`: a compiled `STATIC` lib by default
   (toggle `${PROJECT_NAME}_BUILD_LIB`), with the header-only (`INTERFACE`)
   variant shown commented. Keep both patterns present and buildable — the
