@@ -1,7 +1,8 @@
 # Starting a new project from this template
 
-A one-time checklist. Work top to bottom — the order matters in the three places
-marked ⚠. Every `- [ ]` is something to do; everything else is why.
+A one-time checklist. Work top to bottom: three steps have to happen in order and
+say so in their heading, and ⚠ elsewhere marks a way to break something quietly.
+Every `- [ ]` is something to do; everything else is why.
 
 When you reach the end you delete this file. That is also what switches
 `cmake/check_artifacts.cmake` from "am I still the template?" to "is this project
