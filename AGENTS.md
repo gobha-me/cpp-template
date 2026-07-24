@@ -68,6 +68,11 @@ Both must build clean and pass all tests. A change that only builds on one
 compiler is not done. (This is how the fmt-under-clang-20 breakage was caught —
 build on both, always.)
 
+CI (`.github/workflows/ci.yml`) enforces this on every push and pull request:
+GCC and Clang × {default, address, thread, undefined} toolchains, plus the
+`version-parse-selftest`. A one-compiler change turns that compiler's jobs red,
+so the template can't rot unnoticed — run the commands above locally first.
+
 ## Attribution
 
 Follow the convention used across this org's repos: agent-authored commits
