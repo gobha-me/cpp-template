@@ -29,6 +29,17 @@ endif ()
 
 file(GLOB TEST_DIRS ${CMAKE_CURRENT_LIST_DIR}/*)
 
+# Say this once, at configure time, instead of letting it surface as a link error
+# buried in a build log. The guard below keeps *configuring* valid with the
+# library switched off; it cannot conjure symbols for a test that calls into it.
+if (NOT TARGET ${PROJECT_NAME}::lib)
+  message(STATUS
+    "${PROJECT_NAME}::lib is not built — discovered tests will not link against it. "
+    "Pair -D${PROJECT_NAME}_BUILD_LIB=OFF with -D${PROJECT_NAME}_TESTS=OFF, or keep "
+    "only tests that do not call into the library."
+  )
+endif ()
+
 foreach(TEST_DIR ${TEST_DIRS})
   cmake_path(GET TEST_DIR FILENAME TEST_NAME_PATH)
   set(TEST_NAME ${TEST_NAME_PATH}-test)
@@ -49,6 +60,10 @@ foreach(TEST_DIR ${TEST_DIRS})
       ${SRCS}
     )
 
+    # Kept even though ${PROJECT_NAME}::lib already propagates include/ below:
+    # with -D<PROJECT>_BUILD_LIB=OFF there is no library to propagate anything,
+    # and every test still includes the generated <version.hpp> from there. The
+    # second path is a hook for shared test-only headers in test/include/.
     target_include_directories(${TEST_NAME}
       PUBLIC ${CMAKE_SOURCE_DIR}/include
       PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include
@@ -57,13 +72,38 @@ foreach(TEST_DIR ${TEST_DIRS})
     target_link_libraries(${TEST_NAME}
       PRIVATE Catch2::Catch2
     )
+
+    # Auto-discovered tests get the project library for free. Without this,
+    # testing your own code means either a per-dir CMakeLists.txt or copying
+    # library sources into the test dir — and the first test written against
+    # src/lib/ dies at link time with `undefined reference`, which reads like a
+    # broken build rather than a missing line.
+    #
+    # The guard is not optional: -D<PROJECT>_BUILD_LIB=OFF never creates the
+    # target, and an unguarded link line would turn that supported configuration
+    # into a hard configure error.
+    #
+    # The ALIAS makes the STATIC/INTERFACE choice in src/lib/CMakeLists.txt
+    # invisible here — linking an ALIAS to an INTERFACE library propagates its
+    # usage requirements and archives nothing, so this line is correct for both.
+    #
+    # This lives in the elseif branch on purpose: a test dir with its own
+    # CMakeLists.txt owns all of its wiring, this included (see test/02example).
+    if (TARGET ${PROJECT_NAME}::lib)
+      target_link_libraries(${TEST_NAME}
+        PRIVATE ${PROJECT_NAME}::lib
+      )
+    endif ()
   else()
     continue()
   endif()
 
+  # No -s here: it makes Catch2 report every *successful* assertion too, which
+  # buries the interesting output in a full-suite run. Ask for it per invocation
+  # when you actually want it — `ctest -R <name> -V`, or `./build/test/<dir>-test -s`.
   add_test(
     NAME ${TEST_NAME}
-    COMMAND ${TEST_NAME} -s
+    COMMAND ${TEST_NAME}
   )
 
   set_tests_properties(${TEST_NAME} PROPERTIES FIXTURES_REQUIRED runners)

@@ -1,14 +1,23 @@
+// The same test as test/01example, in a dir that builds itself.
+//
+// This directory ships a CMakeLists.txt, so the discovery loop hands it to
+// add_subdirectory() and stops there — none of the loop's own wiring applies.
+// That file therefore has to supply the two things this test needs and would
+// otherwise have been given: main() (here from Catch2::Catch2WithMain rather
+// than test/main.cpp) and the link against the project library.
+//
+// Reach for this only when a test genuinely needs custom build control — extra
+// sources from outside the dir, a different Catch2 main, its own compile
+// definitions. The cost is that the harness stops maintaining the target for
+// you, as the duplicated link line next door demonstrates.
+
 #include <catch2/catch_test_macros.hpp>
 
-// https://github.com/catchorg/Catch2/blob/devel/docs/tutorial.md
+#include <lib.hpp>
+#include <version.hpp>
 
-unsigned int Factorial(unsigned int number) {
-  return number <= 1 ? number : Factorial(number - 1) * number;
-}
+#include <string_view>
 
-TEST_CASE("Factorials are computed", "[factorial]") {
-  REQUIRE(Factorial(1) == 1);
-  REQUIRE(Factorial(2) == 2);
-  REQUIRE(Factorial(3) == 6);
-  REQUIRE(Factorial(10) == 3628800);
+TEST_CASE("a self-built test dir can still reach the library", "[lib][smoke]") {
+  REQUIRE(std::string_view{template_lib::version_string()} == PROGRAM_NAME);
 }

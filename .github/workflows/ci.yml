@@ -79,6 +79,28 @@ jobs:
         # CT-05 version-parse-selftest.
         run: ctest --test-dir build --output-on-failure
 
+  # The library-disabled path, which the matrix above never exercises: every job
+  # there builds with the library ON, so nothing would catch a regression in the
+  # `if (TARGET ${PROJECT_NAME}::lib)` guards that keep -D<name>_BUILD_LIB=OFF a
+  # supported configuration. OFF removes the target outright, so the tests that
+  # call into the library cannot link — hence the documented pairing with
+  # -D<name>_TESTS=OFF, which is exactly what this job proves still works.
+  #
+  # The project name is derived from the checkout directory, same as the root
+  # CMakeLists.txt does, so this stays copyable to a fork verbatim.
+  lib-off:
+    name: library disabled
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure and build with the library off
+        run: |
+          NAME=$(basename "$GITHUB_WORKSPACE")
+          cmake -B build "-D${NAME}_BUILD_LIB=OFF" "-D${NAME}_TESTS=OFF"
+          cmake --build build --parallel
+
   # Fast, dependency-free guard: the git-describe version parser self-test on its
   # own (no compiler, no network). It also runs inside every build job above via
   # ctest; this job gives quick, isolated feedback.

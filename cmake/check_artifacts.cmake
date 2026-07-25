@@ -203,7 +203,7 @@ foreach(_demo 01example 02example 10example)
     string(APPEND _r "\n           test/${_demo}/")
   endif()
 endforeach()
-report_a("A5" "factorial demo test dirs" _h _r)
+report_a("A5" "demo test dirs" _h _r)
 
 set(_h 0)
 set(_r "")

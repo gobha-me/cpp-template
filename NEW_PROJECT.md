@@ -45,7 +45,7 @@ What to do with each file:
 | --- | --- | --- |
 | `LICENSE.md` | `README.md` | `.github/workflows/ci.yml` |
 | `src/bin/main.cpp` | `AGENTS.md` | `.clangd`, `.gitignore` |
-| `src/lib/lib.cpp` | | `cmake/toolchain/*`, `cmake/version*.cmake` |
+| `src/lib/lib.cpp`, `include/lib.hpp` | | `cmake/toolchain/*`, `cmake/version*.cmake` |
 
 - [ ] **Project name.** The default is the **directory name** (`CMakeLists.txt:10-13`).
       Either name the directory what you want the project called, or replace
@@ -91,19 +91,29 @@ What to do with each file:
 - [ ] **`src/bin/CMakeLists.txt`** — drop the `PRIVATE argparse` /
       `PRIVATE fmt::fmt-header-only` lines for whatever you stopped using.
       (The fmt target is `fmt::fmt-header-only`, not `fmt::fmt`.)
-- [ ] **`src/lib/lib.cpp`** — replace it, and rename `namespace template_lib`.
+- [ ] **`src/lib/lib.cpp` and `include/lib.hpp`** — replace both, and rename the
+      namespace in each. They are a pair: the header declares the library's
+      public API, the source defines it.
+
+  > The example tests call into that namespace too, so rename it there as well —
+  > or do this after Step 4 below, which deletes them.
+
 - [ ] **`src/lib/CMakeLists.txt` — pick one.** Keep the compiled `STATIC` target,
       or delete it and uncomment the header-only `INTERFACE` variant below it.
       Delete the one you did not pick.
 
   > The template ships both on purpose, as a worked example of each. Your project
   > should ship the one it uses.
+  >
+  > ⚠ Picking `INTERFACE` means there is no translation unit, so every function
+  > in `include/lib.hpp` must become a definition rather than a declaration: mark
+  > each one `inline` and move its body into the header. Skip that and the header
+  > still compiles everywhere while nothing that calls it links.
 
-- [ ] **Link the library — in two places.** Nothing currently links
-      `${PROJECT_NAME}::lib`; not the binary, not the tests. Until you wire it,
-      anything you put in `src/lib/` is compiled into an archive nobody reads.
-
-  In `src/bin/CMakeLists.txt`, add it to the existing call:
+- [ ] **Link the library into the binary.** Nothing links `${PROJECT_NAME}::lib`
+      from `src/bin/` yet, so anything you put in `src/lib/` is compiled into an
+      archive the executable never reads. Add it to the existing call in
+      `src/bin/CMakeLists.txt`:
 
   ```cmake
   target_link_libraries(${PROJECT_NAME}
@@ -112,25 +122,11 @@ What to do with each file:
   )
   ```
 
-  Tests are the one that bites, because the link line lives in the shared
-  discovery loop rather than next to your test. In `test/CMakeLists.txt`, after
-  the `target_link_libraries(${TEST_NAME} PRIVATE Catch2::Catch2)` call inside
-  the `foreach`, add:
-
-  ```cmake
-  if (TARGET ${PROJECT_NAME}::lib)
-    target_link_libraries(${TEST_NAME} PRIVATE ${PROJECT_NAME}::lib)
-  endif ()
-  ```
-
-  > The `if (TARGET ...)` guard matters: the library target does not exist when
-  > someone configures with `-D<name>_BUILD_LIB=OFF`, and an unguarded link line
-  > turns that into a configure error.
-  >
-  > Skip this and the very first test you write against your own code fails at
-  > link time with `undefined reference`, which reads like a broken build rather
-  > than a missing line. Being fixed upstream in CT-09 (#10); until that lands it
-  > is yours to wire.
+  > Tests are already handled: `test/CMakeLists.txt` links the library into every
+  > auto-discovered test, behind an `if (TARGET ...)` guard so that
+  > `-D<name>_BUILD_LIB=OFF` still configures. A test directory with its own
+  > `CMakeLists.txt` is the exception — it does its own linking, and
+  > `test/02example/` shows the line.
 
 ---
 
@@ -158,12 +154,29 @@ What to do with each file:
 
 - [ ] Delete `test/01example/`, `test/02example/`, `test/10example/`.
 
-  > `01example` and `10example` are byte-identical factorial demos. `02example`
-  > is the only worked example of a test that brings its own `CMakeLists.txt` —
-  > read it before you delete it if you will ever need custom build control.
+  > `01example` is the minimum a test dir can be: a `test.cpp`, no CMakeLists,
+  > linked against the library for you — and its empty `file.cpp` is there to
+  > show that every `*.cpp` in the dir is globbed into the target. `10example` is
+  > a failure-matrix test against the library's public header. `02example` is the
+  > only worked example of a test that brings its own `CMakeLists.txt` — read it
+  > before you delete it if you will ever need custom build control, because such
+  > a dir does its own linking.
 
 - [ ] **Keep `test/main.cpp`.** It provides `main()` for every test directory
       that does not bring its own `CMakeLists.txt`.
+- [ ] **`cmake/startup.sh` / `cmake/shutdown.sh` — fill in or leave.** ctest runs
+      them as the `runners` fixture before and after the suite. That is where
+      service dependencies (database, broker, container) belong, not in
+      `test/main.cpp`, which runs once per test binary. Leaving them empty costs
+      two trivially passing tests.
+
+  > If you delete them, also delete the two `add_test` calls and the
+  > `FIXTURES_SETUP` / `FIXTURES_CLEANUP` lines in `test/CMakeLists.txt`, plus
+  > the `FIXTURES_REQUIRED` property set inside the discovery loop.
+  >
+  > ⚠ Keep the executable bit. ctest runs them by path with no interpreter, so a
+  > `cp` without `-p`, or a zip download, breaks every test run with a permission
+  > error. Rule B5 catches this one.
 - [ ] **Keep `test/20failure-testing/`** until you have written your own
       failure-matrix test to replace it.
 
