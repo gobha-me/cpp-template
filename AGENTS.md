@@ -36,14 +36,20 @@ correctly," not for any one downstream project.
   `default.cmake` and layers its flags — don't edit `default.cmake` to force a
   specific setup.
 - **Library pattern** in `src/lib/`: a compiled `STATIC` lib by default
-  (toggle `${PROJECT_NAME}_BUILD_LIB`), with the header-only (`INTERFACE`)
-  variant shown commented. Keep both patterns present and buildable — the
+  (toggle `${PROJECT_NAME}_BUILD_LIB`), public API in `include/lib.hpp`, with the
+  header-only (`INTERFACE`) variant shown commented. Flipping to `INTERFACE`
+  means every function in that header has to become an `inline` definition, or
+  nothing that calls it links. Keep both patterns present and buildable — the
   template teaches by having both. That is a rule for *this* repo; a project
   bootstrapped from it picks one and deletes the other (see `NEW_PROJECT.md`).
 - **Tests are auto-discovered**: `test/CMakeLists.txt` loops over `test/*/`.
-  A new test is just `test/<name>/test.cpp` (no CMakeLists needed); add a
-  `CMakeLists.txt` in the dir only if the test needs custom build control.
-  Prefix with `##` to influence ordering. After adding a test dir, re-run
+  A new test is just `test/<name>/test.cpp` (no CMakeLists needed); it gets
+  `main()` from `test/main.cpp`, plus Catch2 and `${PROJECT_NAME}::lib` behind an
+  `if (TARGET ...)` guard, so `-D<PROJECT>_BUILD_LIB=OFF` still configures. Add a
+  `CMakeLists.txt` in the dir only if the test needs custom build control — that
+  dir then owns its own wiring, the library link included. Directory names sort
+  the glob, which sets registration order, not execution order; use fixtures or
+  `DEPENDS` when order actually matters. After adding a test dir, re-run
   `cmake -B`.
 
 ## Testing philosophy (the important one)
@@ -54,8 +60,11 @@ what you already knew it returned, on input chosen because it works. The
 valuable tests are the adversarial ones — bad input, boundaries, overflow,
 malformed external data, error paths. Write the **failure matrix first**; the
 happy-path check is the last, least-interesting test (a smoke check that the
-harness runs). See `test/20failure-testing/` for the canonical example — follow
-it, not the factorial examples (which exist to show Catch2 mechanics).
+harness runs). See `test/20failure-testing/` for the canonical example, and
+`test/10example/` for the same discipline applied to this repo's own library
+through its public header. `test/01example/` and `test/02example/` are
+deliberately thin — they demonstrate discovery and custom build control, not how
+to write a test.
 
 ## How to verify a change (do this before opening a PR)
 

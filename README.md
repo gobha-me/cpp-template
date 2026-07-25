@@ -44,21 +44,38 @@ Some features baked in, and the assumptions behind them:
   a compiled `STATIC` library out of the box (disable with
   `-D<PROJECT>_BUILD_LIB=OFF`), with the header-only (`INTERFACE`) variant shown
   as a commented alternative for header-only projects.
+  * Its public API lives in `include/lib.hpp`, and auto-discovered tests link it
+    for you.
+  * `-D<PROJECT>_BUILD_LIB=OFF` removes the target entirely, so nothing can link
+    it — pair it with `-D<PROJECT>_TESTS=OFF` unless your tests avoid the
+    library.
 * **Tests**
-  * Catch2 (v3) for writing tests.
-    * Empty fixture scripts for starting/stopping any services required for
-      tests, baked into `test/main.cpp` and other parts of the tree.
-    * If you want a different framework, replacing it is left as an exercise.
-  * Tests live in `test/`.
-    * `test/CMakeLists.txt` loops over the dirs in this path.
-    * To force test ordering, prefix names with `##` — see the example names.
-    * Can be as simple as `test/<test_name>/test.cpp`.
+  * Catch2 (v3) for writing tests. If you want a different framework, replacing
+    it is left as an exercise.
+  * Tests live in `test/`, one directory per test.
+    * `test/CMakeLists.txt` globs the dirs in this path at configure time.
+    * Can be as simple as `test/<test_name>/test.cpp`. `test/main.cpp` supplies
+      `main()`, and the target links Catch2 **and** `<PROJECT>::lib` when the
+      library target exists — so a test can include a public header from
+      `include/` and call into `src/lib/` with no build wiring of its own.
       * This strategy makes adding tests really simple — just focus on the test
         code.
       * On the other hand, if the code is already built, `cmake -B` has to be
         run again to pick up a new test dir.
       * If you need more control over a test's build, add a `CMakeLists.txt` in
-        that dir.
+        that dir — it then owns all of its own wiring, the library link
+        included.
+    * The numeric prefixes (`01example`, `20failure-testing`) sort that glob, so
+      they set the order tests are *registered* — the order `ctest -N` lists
+      them. They are not an execution guarantee: even a serial run reorders
+      around fixtures, and `ctest -j` ignores them outright. When one test
+      genuinely must run after another, say so with fixtures or `DEPENDS`, not
+      with names.
+    * `cmake/startup.sh` and `cmake/shutdown.sh` are the hooks for services the
+      suite depends on. They are wired in `test/CMakeLists.txt` as the `runners`
+      fixture (`FIXTURES_SETUP` / `FIXTURES_CLEANUP`), run once per `ctest`
+      invocation, and ship as no-ops — fill them in if your tests need something
+      running.
 * **Toolchains** live in `cmake/toolchain/`; the default is `default.cmake`.
   * Default build type is Debug.
   * Separate opt-in files enable clang or the sanitizers:
@@ -120,11 +137,16 @@ $EDITOR test/40myfeature/test.cpp    # TEST_CASEs only — test/main.cpp provide
 cmake -B build && cmake --build build --parallel && ctest --test-dir build
 ```
 
-It becomes the target and ctest name `40myfeature-test`; the numeric prefix
-orders the run. **Re-run `cmake -B` after adding a directory** — discovery is a
-configure-time glob. If a test needs custom build control, give it its own
+It becomes the target and ctest name `40myfeature-test`. **Re-run `cmake -B`
+after adding a directory** — discovery is a configure-time glob. The numeric
+prefix only sorts that glob; it does not order the run (see the Tests bullet
+above). The target links Catch2 and, when the library target exists,
+`<PROJECT>::lib` — so `#include <lib.hpp>` and call into `src/lib/` directly,
+with nothing to wire up. If a test needs custom build control, give it its own
 `test/<dir>/CMakeLists.txt`: it inherits `TEST_NAME` and `SRCS` from the parent
-scope and must define a target named exactly `${TEST_NAME}` (see `test/02example/`).
+scope, must define a target named exactly `${TEST_NAME}`, and must do its own
+linking — the discovery loop's link lines do not reach it (see
+`test/02example/`).
 
 **Run one test**
 
@@ -135,6 +157,7 @@ ctest --test-dir build -R 20failure-testing-test -FS . -FC .           # one, fi
 
 ./build/test/20failure-testing-test --list-tests                       # Catch2 cases within it
 ./build/test/20failure-testing-test "[failure]"                        # one case, or a tag
+./build/test/20failure-testing-test -s                                 # show successful assertions too
 ```
 
 `-R` is a regex match on the test name. Every discovered test carries
