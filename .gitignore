@@ -5,6 +5,14 @@
 /Testing/
 # Generated at build time from include/version.hpp.in.cmake — never commit.
 include/version.hpp
+# Machine-local agent state, root only. Shared agent config that a team may want
+# tracked (.claude/settings.json, agents/, commands/, skills/) stays trackable on
+# purpose — a bare /.claude/ would repeat the overbroad-pattern bug of CT-07 / #8.
+/.claude/worktrees/
+/.claude/settings.local.json
+# clangd's index dir, written at the root of whatever tree you open (.clangd is
+# committed, so this appears for anyone using a clangd-backed editor).
+/.cache/
 
 # Prerequisites
 *.d
