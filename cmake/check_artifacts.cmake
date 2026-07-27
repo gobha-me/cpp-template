@@ -18,6 +18,12 @@
 # red — so a rule cannot quietly rot into one that matches nothing and passes
 # every fork forever.
 #
+# The inversion covers Class A ONLY. A Class-B rule that decays into one which
+# matches nothing passes silently, here and in every fork — which is precisely
+# what happened to B2 and B3 (CT-14). Class B is checked by deliberate injection
+# instead: break the thing on purpose, watch the rule go red, revert. Do that
+# whenever you touch one, and see the notes above each rule for what to break.
+#
 # test/CMakeLists.txt picks the mode by whether NEW_PROJECT.md still exists, so
 # a new project inherits enforcement the moment it finishes the checklist and
 # deletes that file. There is nothing to wire up.
@@ -262,11 +268,16 @@ if(EXISTS "${REPO_ROOT}/CMakeLists.txt")
     endif()
     if(_in_list)
       list(APPEND _deps_lines ${_n})
+      # Strip the comment BEFORE looking for the closing paren, not after
+      # (CT-14). A trailing comment may itself contain one — `catch2  # Catch2
+      # v3 — test framework (test/)` did — which ended the list at the first
+      # entry and left _deps = [catch2]. B1 and B2 then silently checked one of
+      # three dependencies while reporting `ok` for all of them.
+      string(REGEX REPLACE "#.*$" "" _payload "${_payload}")
       if("${_payload}" MATCHES "^([^)]*)\\)")
         set(_payload "${CMAKE_MATCH_1}")
         set(_in_list FALSE)
       endif()
-      string(REGEX REPLACE "#.*$" "" _payload "${_payload}")
       string(REGEX REPLACE "[ \t]+" ";" _payload "${_payload}")
       foreach(_tok IN LISTS _payload)
         if(NOT "${_tok}" STREQUAL "")
@@ -290,6 +301,15 @@ report_b("B1" "every listed dependency has a recipe" _b1 _r)
 # Listed-but-unused: the venice-cpp failure — recipes that FetchContent-pull a
 # library nothing links. The usage token is derived from the recipe's own
 # find_package() call, so this works for deps the template never heard of.
+#
+# The three filters in the scan below are each load-bearing (CT-14). This rule
+# shipped unable to flag 2 of this repo's 3 dependencies: with the only fmt and
+# argparse link lines deleted it still reported `ok`, because a plain substring
+# test found the names in a component-gating line, a comment, and the consumer
+# harness's negative-control list. None of those is wiring. Class B is not
+# inverted by selftest, so nothing else catches this rule rotting — if you
+# change the matcher, re-prove it by deleting a real link line and watching the
+# rule go red for that dep.
 set(_b2 0)
 set(_r "")
 foreach(_dep IN LISTS _deps)
@@ -311,6 +331,9 @@ foreach(_dep IN LISTS _deps)
   if(_pkg STREQUAL "")
     continue()   # recipe doesn't use find_package; nothing to correlate
   endif()
+  # find_package names may contain regex metacharacters (`.` `+` are legal in
+  # the charclass above); quote them before interpolating _pkg into a pattern.
+  string(REGEX REPLACE "([.+])" "\\\\\\1" _pkg_re "${_pkg}")
   set(_used FALSE)
   foreach(_rel IN LISTS REPO_FILES)
     if(NOT "${_rel}" MATCHES "(CMakeLists\\.txt|\\.cmake)$")
@@ -330,7 +353,24 @@ foreach(_dep IN LISTS _deps)
           continue()
         endif()
       endif()
-      if("${_line}" MATCHES "${_pkg}")
+      # Comments are prose, not wiring. A comment explaining *why* a dependency
+      # was dropped ("we no longer pull fmt") otherwise reads as evidence that it
+      # is still used, blinding the rule to exactly the dep it exists to catch.
+      if("${_line}" MATCHES "^[ \t]*#")
+        continue()
+      endif()
+      # Any other line that manipulates the deps list is declaration/gating too —
+      # the component gates (`list(REMOVE_ITEM ..._DEPS fmtlib argparse)`) live
+      # outside the `set()` block that _deps_lines covers.
+      if("${_line}" MATCHES "_DEPS")
+        continue()
+      endif()
+      # Require the mention to be shaped like a link, not merely to appear. A
+      # bare substring test counts `fmtlib` as a use of `fmt`, and counts any
+      # list that happens to name the package (example/consumer's leak list) as
+      # wiring. Real usage is `Pkg::Target`, or a bare token ending the line or
+      # the argument list.
+      if("${_line}" MATCHES "(^|[^A-Za-z0-9_.])${_pkg_re}(::|[ \t]*$|[ \t]*\\))")
         set(_used TRUE)
         break()
       endif()
@@ -349,13 +389,21 @@ report_b("B2" "no dependency is fetched but unused" _b2 _r)
 # The UBSan define is a coupled pair across two files. Rename it on one side
 # only and the UBSan smoke case compiles out on GCC <= 13 while the binary
 # still exits 0 — sanitizer verification lost, CI green.
+#
+# The `([^A-Za-z0-9_]|$)` tail on all three token regexes below is load-bearing,
+# not decoration (CT-14). Without it the capture has no right boundary, so
+# `-DTEMPLATE_UBSAN_TYPO` still yields CMAKE_MATCH_1 = "TEMPLATE_UBSAN": both
+# sides then "agree" and a one-sided rename that APPENDS a suffix passes. The
+# rule still caught renames breaking the UBSAN stem (TEMPLATE_UBSAX), which is
+# why it looked healthy. If you touch these regexes, re-prove the rule by
+# renaming the define on ONE side only — both directions, suffix and stem.
 set(_b3 0)
 set(_r "")
 set(_ubsan_toolchain "")
 if(EXISTS "${REPO_ROOT}/cmake/toolchain/undefined.cmake")
   _read_lines("${REPO_ROOT}/cmake/toolchain/undefined.cmake" _u_lines)
   foreach(_line IN LISTS _u_lines)
-    if("${_line}" MATCHES "-D([A-Za-z_][A-Za-z0-9_]*UBSAN)")
+    if("${_line}" MATCHES "-D([A-Za-z_][A-Za-z0-9_]*UBSAN)([^A-Za-z0-9_]|$)")
       list(APPEND _ubsan_toolchain "${CMAKE_MATCH_1}")
     endif()
   endforeach()
@@ -371,10 +419,10 @@ foreach(_rel IN LISTS REPO_FILES)
   endif()
   _read_lines("${REPO_ROOT}/${_rel}" _lines)
   foreach(_line IN LISTS _lines)
-    if("${_line}" MATCHES "defined[ \t]*\\([ \t]*([A-Za-z_][A-Za-z0-9_]*UBSAN)")
+    if("${_line}" MATCHES "defined[ \t]*\\([ \t]*([A-Za-z_][A-Za-z0-9_]*UBSAN)([^A-Za-z0-9_]|$)")
       list(APPEND _ubsan_tests "${CMAKE_MATCH_1}")
     endif()
-    if("${_line}" MATCHES "^[ \t]*#[ \t]*define[ \t]+([A-Za-z_][A-Za-z0-9_]*UBSAN)")
+    if("${_line}" MATCHES "^[ \t]*#[ \t]*define[ \t]+([A-Za-z_][A-Za-z0-9_]*UBSAN)([^A-Za-z0-9_]|$)")
       list(APPEND _ubsan_selfdef "${CMAKE_MATCH_1}")
     endif()
   endforeach()
