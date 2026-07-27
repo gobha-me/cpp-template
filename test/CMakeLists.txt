@@ -6,7 +6,7 @@ add_test(NAME shutdown COMMAND ${CMAKE_CURRENT_LIST_DIR}/../cmake/shutdown.sh)
 # not go through the auto-discovery foreach below. No fixtures: it has no runtime deps.
 add_test(
   NAME version-parse-selftest
-  COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/version_selftest.cmake
+  COMMAND ${CMAKE_COMMAND} -P ${PROJECT_SOURCE_DIR}/cmake/version_selftest.cmake
 )
 
 # Leftover-template-artifact check (cmake/check_artifacts.cmake), also standalone.
@@ -15,15 +15,15 @@ add_test(
 # and assert each still MATCHES something (a rule that matches nothing has rotted
 # and would wave every fork through). Once a bootstrapped project deletes it, the
 # same script becomes a plain enforcement check with nothing to wire up.
-if (EXISTS ${CMAKE_SOURCE_DIR}/NEW_PROJECT.md)
+if (EXISTS ${PROJECT_SOURCE_DIR}/NEW_PROJECT.md)
   add_test(
     NAME artifact-check-selftest
-    COMMAND ${CMAKE_COMMAND} -DMODE=selftest -P ${CMAKE_SOURCE_DIR}/cmake/check_artifacts.cmake
+    COMMAND ${CMAKE_COMMAND} -DMODE=selftest -P ${PROJECT_SOURCE_DIR}/cmake/check_artifacts.cmake
   )
 else ()
   add_test(
     NAME artifact-check
-    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_SOURCE_DIR}/cmake/check_artifacts.cmake
+    COMMAND ${CMAKE_COMMAND} -P ${PROJECT_SOURCE_DIR}/cmake/check_artifacts.cmake
   )
 endif ()
 
@@ -65,7 +65,7 @@ foreach(TEST_DIR ${TEST_DIRS})
     # and every test still includes the generated <version.hpp> from there. The
     # second path is a hook for shared test-only headers in test/include/.
     target_include_directories(${TEST_NAME}
-      PUBLIC ${CMAKE_SOURCE_DIR}/include
+      PUBLIC ${PROJECT_SOURCE_DIR}/include
       PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include
     )
 

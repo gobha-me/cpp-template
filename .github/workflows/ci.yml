@@ -101,6 +101,46 @@ jobs:
           cmake -B build "-D${NAME}_BUILD_LIB=OFF" "-D${NAME}_TESTS=OFF"
           cmake --build build --parallel
 
+  # The consuming-project path, which nothing else here covers: every job above
+  # builds this repo as the top-level project, so a regression in the
+  # PROJECT_IS_TOP_LEVEL guards, the install/export rules or the public usage
+  # requirements would go unnoticed until a downstream project hit it.
+  #
+  # example/consumer/verify.sh builds a miniature downstream project three ways —
+  # add_subdirectory, FetchContent, and an installed find_package — and runs the
+  # result each time. Both compilers, because a usage requirement can propagate
+  # on one and not the other.
+  consumer:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "consumer / gcc",   cxx: g++ }
+          - { name: "consumer / clang", cxx: clang++ }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Same pin and rationale as the build matrix above.
+      - name: Install Clang
+        if: ${{ startsWith(matrix.cxx, 'clang') }}
+        env:
+          CLANG_VERSION: "20"
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          sudo ln -sf "/usr/bin/clang-$CLANG_VERSION"   /usr/local/bin/clang
+          sudo ln -sf "/usr/bin/clang++-$CLANG_VERSION" /usr/local/bin/clang++
+
+      - name: Consume the library three ways
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: example/consumer/verify.sh
+
   # Fast, dependency-free guard: the git-describe version parser self-test on its
   # own (no compiler, no network). It also runs inside every build job above via
   # ctest; this job gives quick, isolated feedback.

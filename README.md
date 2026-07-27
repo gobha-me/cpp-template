@@ -49,6 +49,13 @@ Some features baked in, and the assumptions behind them:
   * `-D<PROJECT>_BUILD_LIB=OFF` removes the target entirely, so nothing can link
     it — pair it with `-D<PROJECT>_TESTS=OFF` unless your tests avoid the
     library.
+* **Consumable, not just buildable** — the library installs, exports and ships a
+  package config, so `find_package(<PROJECT> CONFIG)` is real. Everything that
+  is not the library (`<PROJECT>_BUILD_BIN`, `<PROJECT>_TESTS`,
+  `<PROJECT>_INSTALL`) defaults to `PROJECT_IS_TOP_LEVEL`, so a project that
+  embeds this one gets the library and nothing else — no demo executable, no
+  test suite, no install rules in someone else's prefix, and none of the
+  dependencies that only served those. See **Consume this project** below.
 * **Tests**
   * Catch2 (v3) for writing tests. If you want a different framework, replacing
     it is left as an exercise.
@@ -166,6 +173,64 @@ you filter — `-R` alone reports **three** tests, not one. `-FS . -FC .` exclud
 the fixtures. Tests with their own `CMakeLists.txt` build into
 `build/test/<dir>/`; the rest land in `build/test/`.
 
+**Consume this project from another project**
+
+Three ways in, one target name — `<PROJECT>::lib` — so switching between them
+never touches a link line.
+
+```cmake
+# 1. vendored / submoduled
+add_subdirectory(third_party/<project>)
+
+# 2. FetchContent
+include(FetchContent)
+FetchContent_Declare(<project>
+  GIT_REPOSITORY <url>
+  GIT_TAG        v1.2.3
+  SOURCE_DIR     ${FETCHCONTENT_BASE_DIR}/<project>   # ← see below
+)
+FetchContent_MakeAvailable(<project>)
+
+# 3. installed
+find_package(<project> CONFIG REQUIRED)
+
+target_link_libraries(app PRIVATE <project>::lib)     # all three, unchanged
+```
+
+⚠ **Pin `SOURCE_DIR` in the FetchContent case.** This project takes its name
+from its directory, and FetchContent checks out into `<base>/<name>-src` — so
+without that line the project comes out named `<name>-src` and the target you
+have to link is `<name>-src::lib`. This applies to any directory-named project,
+not just this one.
+
+You inherit the include directory *and* C++23 as usage requirements of the
+target; a consumer sets neither. `example/consumer/` is a working downstream
+project that builds all three ways, and `example/consumer/verify.sh` runs them.
+
+**Install it**
+
+```bash
+cmake -B build -DCMAKE_INSTALL_PREFIX=/opt/<project>
+cmake --build build --parallel
+cmake --install build
+```
+
+Installs the library, `include/*.hpp`, the executable, and a package config at
+`<prefix>/lib/cmake/<project>/`. Build with `-D<PROJECT>_BUILD_BIN=OFF
+-D<PROJECT>_TESTS=OFF` for a library-only install.
+
+Two things worth knowing before you depend on it:
+
+* The version in the package config comes from `git describe` at configure time.
+  A build with no reachable tags reports `0.0.0`, and a consumer's
+  `find_package(<project> 1.2.3 CONFIG REQUIRED)` is then refused — correctly,
+  but the real cause is usually a shallow clone. Compatibility is
+  `SameMajorVersion`.
+* Headers install flat into `<prefix>/include`, generated `version.hpp`
+  included. That header declares *unprefixed* constants (`PROGRAM_NAME`,
+  `VERSION_MAJOR`, …). A project expecting wide consumption should move its
+  headers under `include/<project>/` first.
+
 **Cut a release tag**
 
 ```bash
@@ -189,6 +254,11 @@ pull request, enforcing the "both compilers, always" rule:
 * **GCC and Clang** ×
 * the **default** toolchain plus every sanitizer (**address**, **thread**,
   **undefined**) — 8 build/test jobs in all,
+* a **library disabled** job, covering the `-D<PROJECT>_BUILD_LIB=OFF` path the
+  matrix never takes,
+* two **consumer** jobs (one per compiler) building `example/consumer/` against
+  this project three ways — the only coverage of the consumed, not-top-level
+  path,
 * plus a fast, dependency-free `version-parse-selftest` job.
 
 A change that only builds on one compiler turns that compiler's jobs red, so a

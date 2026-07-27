@@ -13,7 +13,7 @@
   )
 
   target_include_directories(${TEST_NAME}
-    PUBLIC ${CMAKE_SOURCE_DIR}/include
+    PUBLIC ${PROJECT_SOURCE_DIR}/include
     PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include
   )
 
