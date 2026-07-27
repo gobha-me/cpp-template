@@ -124,6 +124,16 @@ use Clang 19+ (libstdc++) or any Clang with libc++. Same class of compiler/stdli
 break as the fmt-under-clang-20 note above; CI surfaced it. If you develop with
 Clang, verify with a version CI would accept, not just whatever `clang++` resolves to.
 
+**The same applies to GCC, and it is the easier one to get wrong**, because
+`g++` on a dev box is usually *newer* than CI's, so a change can pass locally and
+fail on the supported floor. CI runs GCC 13; `g++-13` is packaged alongside
+`g++-14` on Ubuntu 24.04, so reach for `CXX=g++-13` before opening a PR that
+touches language-level or usage-requirement behaviour. Worked example: C++23 mode
+on GCC 13 reports `__cplusplus` as **202100L**, not 202302L (CMake selects
+`-std=c++2b` there), so a `__cplusplus >= 202302L` check passes on GCC 14 and
+Clang 20 and fails on the floor. Prefer a feature-test macro to a `__cplusplus`
+comparison — see the note in `example/consumer/main.cpp`.
+
 ## Attribution
 
 Follow the convention used across this org's repos: agent-authored commits

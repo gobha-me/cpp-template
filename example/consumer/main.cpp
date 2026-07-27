@@ -17,8 +17,17 @@
 // consumer inherits it even though it never set CMAKE_CXX_STANDARD and never
 // used this project's toolchain files. Delete that line from
 // src/lib/CMakeLists.txt and this is what goes red.
-static_assert(__cplusplus >= 202302L,
-              "the library's cxx_std_23 usage requirement did not reach the consumer");
+//
+// Checked with a C++23 language feature-test macro rather than with
+// __cplusplus, because that value is not a reliable "is this C++23" signal:
+// CMake maps cxx_std_23 to -std=c++2b on GCC 13, where __cplusplus is 202100L
+// rather than 202302L. The first version of this check asserted >= 202302L,
+// passed on the Clang 20 job and on a GCC 14 workstation, and went red on CI's
+// GCC 13 — which is the template's own documented floor. An undefined macro
+// evaluates to 0 in #if, so this catches "the requirement never arrived" too.
+#if __cpp_if_consteval < 202106L
+#error "the library's cxx_std_23 usage requirement did not reach the consumer"
+#endif
 
 auto main() -> int {
   std::printf("%s\n", template_lib::version_string());
