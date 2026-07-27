@@ -26,7 +26,16 @@ correctly," not for any one downstream project.
 - **Deps are opt-in via a list, not the filesystem.** A recipe in `cmake/deps/`
   is fetched only if its name is in `${PROJECT_NAME}_DEPS` in the root
   `CMakeLists.txt`. Dropping a file in `cmake/deps/` does **not** activate it;
-  adding a dep means a recipe file **and** a line in that list.
+  adding a dep means a recipe file **and** a line in that list. The two
+  `list(REMOVE_ITEM …)` blocks under that list drop deps whose only consumer is
+  a component that is switched off — they subtract from the list, never add, so
+  the list stays the single prune point.
+- **The library installs and exports.** `cmake/install.cmake` generates the
+  package config, the target export set and the header install; the exported
+  target must keep spelling `${PROJECT_NAME}::lib`, identical to the in-tree
+  `ALIAS`, and must keep working for **both** library variants without an edit
+  (it detects the target type). A fetched dependency must not install itself
+  into our prefix — see the `FMT_INSTALL` note in `cmake/deps/fmtlib.cmake`.
 
 ## Conventions that matter here
 
@@ -42,6 +51,25 @@ correctly," not for any one downstream project.
   nothing that calls it links. Keep both patterns present and buildable — the
   template teaches by having both. That is a rule for *this* repo; a project
   bootstrapped from it picks one and deletes the other (see `NEW_PROJECT.md`).
+- **Consumer-clean is a rule, not a nicety.** This project has to keep working
+  when it is *not* the top-level one. Concretely:
+  - Never `CMAKE_SOURCE_DIR` / `CMAKE_PROJECT_VERSION` / `CMAKE_PROJECT_NAME` —
+    the `CMAKE_`-prefixed forms describe the top-level build, which belongs to
+    someone else the moment we are consumed. Use `PROJECT_SOURCE_DIR`,
+    `PROJECT_VERSION`, `PROJECT_NAME`.
+  - A new `option()` defaults to `${PROJECT_IS_TOP_LEVEL}` unless it gates the
+    library itself. Anything that builds an application, registers tests, or
+    writes install rules is the consumer's business, not ours.
+  - Public include directories are always
+    `$<BUILD_INTERFACE:…>` / `$<INSTALL_INTERFACE:…>` genexes. A bare source
+    path in a `PUBLIC` include directory makes `install(EXPORT)` fail at
+    generate time — that failure is the feature, not the bug.
+  - Anything the public header needs in order to compile (the C++ standard,
+    a public dependency) travels on the target via `target_compile_features` /
+    `PUBLIC` links. A consumer uses their own toolchain, so
+    `cmake/toolchain/default.cmake` reaches them not at all.
+  - `example/consumer/verify.sh` is what proves all of this; it is in "How to
+    verify a change" below for that reason.
 - **Tests are auto-discovered**: `test/CMakeLists.txt` loops over `test/*/`.
   A new test is just `test/<name>/test.cpp` (no CMakeLists needed); it gets
   `main()` from `test/main.cpp`, plus Catch2 and `${PROJECT_NAME}::lib` behind an
@@ -73,6 +101,11 @@ cmake -B build && cmake --build build && ctest --test-dir build --output-on-fail
 # and cross-compiler, since the template supports both:
 cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake \
   && cmake --build build-clang && ctest --test-dir build-clang
+
+# and, for anything touching the build's shape, the consumed path — which no
+# ctest covers, because every test runs with this repo as the top-level project:
+example/consumer/verify.sh
+CXX=clang++ example/consumer/verify.sh
 ```
 
 Both must build clean and pass all tests. A change that only builds on one
@@ -81,14 +114,25 @@ build on both, always.)
 
 CI (`.github/workflows/ci.yml`) enforces this on every push and pull request:
 GCC and Clang × {default, address, thread, undefined} toolchains, plus the
-`version-parse-selftest`. A one-compiler change turns that compiler's jobs red,
-so the template can't rot unnoticed — run the commands above locally first.
+`library disabled`, `consumer` (×2 compilers) and `version-parse-selftest` jobs.
+A one-compiler change turns that compiler's jobs red, so the template can't rot
+unnoticed — run the commands above locally first.
 
 CI pins its Clang jobs to Clang 20: Ubuntu 24.04's stock Clang 18 cannot compile
 the C++23 `std::expected` example (`test/20failure-testing`) against libstdc++ —
 use Clang 19+ (libstdc++) or any Clang with libc++. Same class of compiler/stdlib
 break as the fmt-under-clang-20 note above; CI surfaced it. If you develop with
 Clang, verify with a version CI would accept, not just whatever `clang++` resolves to.
+
+**The same applies to GCC, and it is the easier one to get wrong**, because
+`g++` on a dev box is usually *newer* than CI's, so a change can pass locally and
+fail on the supported floor. CI runs GCC 13; `g++-13` is packaged alongside
+`g++-14` on Ubuntu 24.04, so reach for `CXX=g++-13` before opening a PR that
+touches language-level or usage-requirement behaviour. Worked example: C++23 mode
+on GCC 13 reports `__cplusplus` as **202100L**, not 202302L (CMake selects
+`-std=c++2b` there), so a `__cplusplus >= 202302L` check passes on GCC 14 and
+Clang 20 and fails on the floor. Prefer a feature-test macro to a `__cplusplus`
+comparison — see the note in `example/consumer/main.cpp`.
 
 ## Attribution
 

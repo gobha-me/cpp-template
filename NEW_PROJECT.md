@@ -45,17 +45,30 @@ What to do with each file:
 | --- | --- | --- |
 | `LICENSE.md` | `README.md` | `.github/workflows/ci.yml` |
 | `src/bin/main.cpp` | `AGENTS.md` | `.clangd`, `.gitignore` |
-| `src/lib/lib.cpp`, `include/lib.hpp` | | `cmake/toolchain/*`, `cmake/version*.cmake` |
+| `src/lib/lib.cpp`, `include/lib.hpp` | `example/consumer/` (or delete it) | `cmake/toolchain/*`, `cmake/version*.cmake` |
+| | | `cmake/install.cmake`, `cmake/project-config.cmake.in` |
 
-- [ ] **Project name.** The default is the **directory name** (`CMakeLists.txt:10-13`).
+> The two install files name nothing project-specific — they build every name
+> out of `${PROJECT_NAME}`, which follows your directory. They are the reason
+> `find_package(<name> CONFIG)` works against your project without you writing
+> any packaging code.
+
+- [ ] **Project name.** The default is the **directory name** (`CMakeLists.txt:17-23`).
       Either name the directory what you want the project called, or replace
       `${ProjectId}` with a literal in `project()`.
 
   > The name is load-bearing beyond the binary. It becomes the executable target,
   > the library target `<name>_lib` / `<name>::lib`, **and the option names**
-  > `<name>_TESTS` and `<name>_BUILD_LIB`, plus the deps variable `<name>_DEPS`.
+  > `<name>_BUILD_LIB`, `<name>_BUILD_BIN`, `<name>_TESTS`, `<name>_INSTALL`,
+  > plus the deps variable `<name>_DEPS`.
   > So every `-D` flag you copy out of the README changes with it:
   > `-Dcpp-template_TESTS=OFF` becomes `-Dmyproject_TESTS=OFF`.
+  >
+  > It is also your **package name**: anyone consuming your project writes
+  > `find_package(<name> CONFIG)` and links `<name>::lib`. And because the name
+  > follows the directory, a downstream FetchContent must pin `SOURCE_DIR` — the
+  > default checkout path `<name>-src` would otherwise rename your project. The
+  > README's "Consume this project" block has the copy-paste.
   >
   > Make the directory name match the GitHub repo name. CI derives the project
   > name from the checkout directory, so if they differ, CI builds under a
@@ -95,8 +108,9 @@ What to do with each file:
       namespace in each. They are a pair: the header declares the library's
       public API, the source defines it.
 
-  > The example tests call into that namespace too, so rename it there as well —
-  > or do this after Step 4 below, which deletes them.
+  > The example tests and `example/consumer/main.cpp` call into that namespace
+  > too, so rename it there as well — or do this after Step 4 below, which
+  > decides the fate of both.
 
 - [ ] **`src/lib/CMakeLists.txt` — pick one.** Keep the compiled `STATIC` target,
       or delete it and uncomment the header-only `INTERFACE` variant below it.
@@ -109,6 +123,11 @@ What to do with each file:
   > in `include/lib.hpp` must become a definition rather than a declaration: mark
   > each one `inline` and move its body into the header. Skip that and the header
   > still compiles everywhere while nothing that calls it links.
+  >
+  > `cmake/install.cmake` needs **no** edit either way — it reads the target's
+  > type. One thing does change, though: an inlined header that reads the
+  > generated version constants makes installing `include/version.hpp`
+  > load-bearing rather than a convenience, so leave that install rule alone.
 
 - [ ] **Link the library into the binary.** Nothing links `${PROJECT_NAME}::lib`
       from `src/bin/` yet, so anything you put in `src/lib/` is compiled into an
@@ -132,11 +151,17 @@ What to do with each file:
 
 ## Step 3 — Prune the dependencies
 
-- [ ] Edit the **contents** of the `${PROJECT_NAME}_DEPS` list at `CMakeLists.txt:34-38`.
+- [ ] Edit the **contents** of the `${PROJECT_NAME}_DEPS` list at `CMakeLists.txt:58-62`.
 
   > `${PROJECT_NAME}_DEPS` looks like a placeholder you are supposed to fill in.
   > It is not — `${PROJECT_NAME}` expands on its own. Change the names *inside*
   > the list; leave the variable name exactly as it is.
+  >
+  > The two `list(REMOVE_ITEM …)` blocks just below drop a dep when the only
+  > component that needed it is switched off — that is what keeps a project
+  > consuming yours from downloading your test framework. Removing a name that
+  > is no longer in the list is a harmless no-op, so if you prune the list you
+  > can leave them; adjust them only if you keep a dep under a different name.
 
 - [ ] Remove `fmtlib` and `argparse` if you dropped them — **after** Step 2, or
       the build breaks on the demo's includes.
@@ -184,6 +209,17 @@ What to do with each file:
   > philosophy, and it is the `std::expected` canary — the reason CI pins Clang
   > 20. Delete it and CI's `Install Clang` step becomes droppable, along with the
   > guarantee it was buying.
+
+- [ ] **`example/consumer/` — keep it or delete it.** It is a miniature
+      downstream project that builds against yours three ways
+      (`add_subdirectory`, FetchContent, installed `find_package`) and is the
+      only check that your library is actually consumable.
+
+  > Keeping it costs one rename: `example/consumer/main.cpp` calls into the demo
+  > namespace, so it belongs in the Step 2 rename above. Deleting it is fine if
+  > nothing will ever depend on your library — drop the `consumer` jobs from
+  > `.github/workflows/ci.yml` too, and be aware that nothing then exercises the
+  > not-top-level path, where the install/export wiring lives.
 
 - [ ] **Keep `test/30sanitizer-smoke/`.** It is the proof that the sanitizer
       toolchains are actually engaged rather than silently no-ops.
@@ -271,4 +307,5 @@ cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake \
   > template leftover ever reappears — and that one stays in your suite for the
   > life of the project.
 
-- [ ] Push, and confirm CI is green: 8 build/test jobs plus `version-parse-selftest`.
+- [ ] Push, and confirm CI is green: 8 build/test jobs, `library disabled`,
+      two `consumer` jobs, and `version-parse-selftest`.

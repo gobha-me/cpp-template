@@ -1,0 +1,27 @@
+@PACKAGE_INIT@
+
+# Package config input for configure_package_config_file() — see
+# cmake/install.cmake. This is what a consumer's find_package(<project> CONFIG)
+# ends up executing.
+#
+# Nothing here spells the project name literally: @PROJECT_NAME@ is substituted
+# at configure time, and the project name comes from the directory name. A fork
+# copies this file verbatim.
+
+# Public dependencies go here — a dependency is *public* when it appears in this
+# project's installed headers or in a PUBLIC/INTERFACE target_link_libraries,
+# because the consumer's compiler will need it too. Without this block they get
+# an "unknown target" error from the Targets file below, which reads like a
+# broken package rather than a missing find_package.
+#
+# This template's library has none. When yours does:
+#
+#   include(CMakeFindDependencyMacro)
+#   find_dependency(fmt 10 REQUIRED)
+#
+# Use find_dependency, not find_package: it forwards REQUIRED/QUIET and reports
+# a miss as "package X not found because dependency Y was missing".
+
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
+
+check_required_components(@PROJECT_NAME@)
