@@ -130,42 +130,81 @@ endif ()
 # <project>Config.cmake is what find_package(<project> CONFIG) loads; it exists
 # to pull in the Targets file (and, in a real project, to re-find the public
 # dependencies those targets need — see the commented block in the .in file).
-configure_package_config_file(
-  ${CMAKE_CURRENT_LIST_DIR}/project-config.cmake.in
-  ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
-  INSTALL_DESTINATION ${_cfg_install_dir}
-)
-
-# ARCH_INDEPENDENT only for the header-only variant: a config that ships no
-# compiled artifact is usable from a build of any word size, and saying so keeps
-# the package from being rejected on a 32/64-bit mismatch that cannot apply.
-# Detected rather than configured, so swapping variants needs no edit here.
-set(_version_file_args "")
+#
+# Guarded on the same target as the library block above, and for a sharper
+# reason than symmetry. This section used to run unconditionally, so
+# -D<project>_BUILD_LIB=OFF installed a Config + ConfigVersion pair beside no
+# Targets file at all. Every other library-shaped rule here, the headers
+# included, was already behind the guard; this was the one piece that was not
+# (#33).
+#
+# The tempting reading is that leaving it installed is *helpful*: the guard at
+# the top of project-config.cmake.in reports <project>_FOUND FALSE with a
+# message naming the cause, so the stray config looks like a useful signpost.
+# It is not. A config that sets _FOUND FALSE does not politely step aside.
+#
+#   find_package does not resume searching the remaining prefixes after it. A
+#   library-less prefix earlier on CMAKE_PREFIX_PATH shadows a perfectly good
+#   install later on it, and the consumer is simply told the package was not
+#   found.
+#
+#   ⚠ Worse, <project>_DIR is cached as a *real path* to that directory, so
+#   CMake treats the package as resolved and never searches again.
+#   Re-configuring with only the good prefix does not recover — the consumer
+#   has to unset <project>_DIR, which nothing in the error message mentions. A
+#   package that is merely absent caches <project>_DIR-NOTFOUND instead, and
+#   self-heals as soon as a good prefix appears. So the stray config turns a
+#   self-healing miss into a sticky one.
+#
+# That is the whole argument: it is not a signpost, it is a tombstone that
+# swallows the next candidate. The diagnosis it buys goes to whoever passed
+# BUILD_LIB=OFF themselves and already knows; the cost falls on a third party
+# consuming an unrelated, working install. Not installing it does cost
+# something — a consumer pointed at a library-less prefix now gets CMake's
+# generic "add the installation prefix to CMAKE_PREFIX_PATH", which misdirects,
+# since the prefix was right. But that is worse wording for a case that fails
+# either way, and this is the cheaper of the two.
+#
+# It also makes the configuration coherent: BUILD_LIB=OFF with INSTALL=ON means
+# "install the application", and a CMake package config is a -dev artifact.
+# No library → no headers → no Targets → no Config.
 if (TARGET ${PROJECT_NAME}_lib)
+  configure_package_config_file(
+    ${CMAKE_CURRENT_LIST_DIR}/project-config.cmake.in
+    ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+    INSTALL_DESTINATION ${_cfg_install_dir}
+  )
+
+  # ARCH_INDEPENDENT only for the header-only variant: a config that ships no
+  # compiled artifact is usable from a build of any word size, and saying so
+  # keeps the package from being rejected on a 32/64-bit mismatch that cannot
+  # apply. Detected rather than configured, so swapping variants needs no edit
+  # here.
+  set(_version_file_args "")
   get_target_property(_lib_type ${PROJECT_NAME}_lib TYPE)
   if (_lib_type STREQUAL "INTERFACE_LIBRARY")
     set(_version_file_args ARCH_INDEPENDENT)
   endif ()
-endif ()
 
-# SameMajorVersion is the conventional read of semver: 1.4.0 satisfies a request
-# for 1.2.0, 2.0.0 does not. Swap to SameMinorVersion or ExactVersion if your
-# project's compatibility promise is narrower.
-#
-# ⚠ The version comes from `git describe` at configure time (cmake/version.cmake).
-# A build with no reachable tags reports 0.0.0, and a consumer asking for a real
-# version then gets a documented refusal from this file rather than a mystery. If
-# that happens in CI, the cause is almost always a shallow clone — keep
-# fetch-depth: 0.
-write_basic_package_version_file(
-  ${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
-  VERSION ${PROJECT_VERSION}
-  COMPATIBILITY SameMajorVersion
-  ${_version_file_args}
-)
-
-install(FILES
-    ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+  # SameMajorVersion is the conventional read of semver: 1.4.0 satisfies a
+  # request for 1.2.0, 2.0.0 does not. Swap to SameMinorVersion or ExactVersion
+  # if your project's compatibility promise is narrower.
+  #
+  # ⚠ The version comes from `git describe` at configure time
+  # (cmake/version.cmake). A build with no reachable tags reports 0.0.0, and a
+  # consumer asking for a real version then gets a documented refusal from this
+  # file rather than a mystery. If that happens in CI, the cause is almost
+  # always a shallow clone — keep fetch-depth: 0.
+  write_basic_package_version_file(
     ${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
-  DESTINATION ${_cfg_install_dir}
-)
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+    ${_version_file_args}
+  )
+
+  install(FILES
+      ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Config.cmake
+      ${PROJECT_BINARY_DIR}/${PROJECT_NAME}ConfigVersion.cmake
+    DESTINATION ${_cfg_install_dir}
+  )
+endif ()
