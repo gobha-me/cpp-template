@@ -48,7 +48,9 @@ Some features baked in, and the assumptions behind them:
     for you.
   * `-D<PROJECT>_BUILD_LIB=OFF` removes the target entirely, so nothing can link
     it — pair it with `-D<PROJECT>_TESTS=OFF` unless your tests avoid the
-    library.
+    library. `cmake --install` then deposits the executable and nothing else:
+    no headers, and no package config, since there would be no exported targets
+    for it to describe.
 * **Consumable, not just buildable** — the library installs, exports and ships a
   package config, so `find_package(<PROJECT> CONFIG)` is real. Everything that
   is not the library (`<PROJECT>_BUILD_BIN`, `<PROJECT>_TESTS`,
@@ -269,7 +271,8 @@ pull request, enforcing the "both compilers, always" rule:
 * the **default** toolchain plus every sanitizer (**address**, **thread**,
   **undefined**) — 8 build/test jobs in all,
 * a **library disabled** job, covering the `-D<PROJECT>_BUILD_LIB=OFF` path the
-  matrix never takes,
+  matrix never takes — it installs as well as builds, and asserts the prefix
+  gets the executable and nothing else,
 * two **consumer** jobs (one per compiler) building `example/consumer/` against
   this project three ways — the only coverage of the consumed, not-top-level
   path,
