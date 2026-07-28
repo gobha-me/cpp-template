@@ -93,7 +93,7 @@ endif (${PROJECT_NAME}_TESTS)
 
 # Install rules, package config and the exported target set. Replaces the
 # long-standing "TODO Install Template": find_package(<project> CONFIG) is real
-# now, and works against an install tree or this build tree.
+# now, and works against an install tree.
 if (${PROJECT_NAME}_INSTALL)
   include(${CMAKE_CURRENT_LIST_DIR}/cmake/install.cmake)
 endif ()

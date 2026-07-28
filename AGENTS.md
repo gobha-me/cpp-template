@@ -30,12 +30,26 @@ correctly," not for any one downstream project.
   `list(REMOVE_ITEM …)` blocks under that list drop deps whose only consumer is
   a component that is switched off — they subtract from the list, never add, so
   the list stays the single prune point.
-- **The library installs and exports.** `cmake/install.cmake` generates the
-  package config, the target export set and the header install; the exported
-  target must keep spelling `${PROJECT_NAME}::lib`, identical to the in-tree
-  `ALIAS`, and must keep working for **both** library variants without an edit
-  (it detects the target type). A fetched dependency must not install itself
-  into our prefix — see the `FMT_INSTALL` note in `cmake/deps/fmtlib.cmake`.
+- **The library installs and exports — at install time only.** `cmake/install.cmake`
+  generates the package config, the target export set and the header install;
+  the exported target must keep spelling `${PROJECT_NAME}::lib`, identical to
+  the in-tree `ALIAS`, and must keep working for **both** library variants
+  without an edit (it detects the target type). **Do not add an `export(EXPORT …)`
+  build-tree export back.** One was removed (#29) because it cannot be copied
+  into a fork whose library links a dependency that ships no build export set —
+  generation stops with "not in any export set", and the condition cannot be
+  guarded for, because link interfaces are generator expressions that do not
+  resolve until after all CMake code has run. The file says this at length;
+  read it before reintroducing the feature.
+- **A fetched dependency's install rules follow where it is linked**, not a
+  fixed default. Private to the executable or the tests → `<DEP>_INSTALL OFF`
+  (the `FMT_INSTALL` note in `cmake/deps/fmtlib.cmake`). Linked into the
+  library → `set(<DEP>_INSTALL ${${PROJECT_NAME}_INSTALL})`, plus a
+  `find_dependency()` line in `cmake/project-config.cmake.in`; a fixed `OFF`
+  there breaks `install(EXPORT)`, and leaving it alone leaks the dependency into
+  a consumer's prefix. Visibility is *not* the test — a PRIVATE link into a
+  static library reaches the exported target too. Written up in
+  `cmake/deps/catch2.cmake`; proved by `example/public-dep/`.
 
 ## Conventions that matter here
 
@@ -106,6 +120,11 @@ cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake \
 # ctest covers, because every test runs with this repo as the top-level project:
 example/consumer/verify.sh
 CXX=clang++ example/consumer/verify.sh
+
+# and, for anything touching install/export or the dependency recipes, the path
+# this project cannot exercise on its own — a fork whose library links a public
+# dependency. One compiler is enough: it fails during generation, if it fails.
+example/public-dep/verify.sh
 ```
 
 Both must build clean and pass all tests. A change that only builds on one
@@ -114,7 +133,8 @@ build on both, always.)
 
 CI (`.github/workflows/ci.yml`) enforces this on every push and pull request:
 GCC and Clang × {default, address, thread, undefined} toolchains, plus the
-`library disabled`, `consumer` (×2 compilers) and `version-parse-selftest` jobs.
+`library disabled`, `consumer` (×2 compilers), `public dependency` and
+`version-parse-selftest` jobs.
 A one-compiler change turns that compiler's jobs red, so the template can't rot
 unnoticed — run the commands above locally first.
 

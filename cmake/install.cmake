@@ -6,9 +6,9 @@
 #   find_package(<project> CONFIG REQUIRED)
 #   target_link_libraries(app PRIVATE <project>::lib)
 #
-# and have it work — against an installed prefix or against a build tree — with
-# the *same* target spelling it would use via add_subdirectory(). One spelling,
-# three acquisition modes. See example/consumer/ for all three, exercised.
+# and have it work against an installed prefix, with the *same* target spelling
+# it would use via add_subdirectory() or FetchContent. One spelling, three
+# acquisition modes. See example/consumer/ for all three, exercised.
 #
 # Included from the root CMakeLists behind ${PROJECT_NAME}_INSTALL, which
 # defaults to PROJECT_IS_TOP_LEVEL: an embedded copy of this project must not
@@ -48,13 +48,54 @@ if (TARGET ${PROJECT_NAME}_lib)
     DESTINATION ${_cfg_install_dir}
   )
 
-  # The same target set, described against this build tree. Lets a consumer point
-  # CMAKE_PREFIX_PATH at a build directory and use find_package without
-  # installing anything — handy while developing the two projects side by side.
-  export(EXPORT ${PROJECT_NAME}Targets
-    FILE      ${PROJECT_BINARY_DIR}/${PROJECT_NAME}Targets.cmake
-    NAMESPACE ${PROJECT_NAME}::
-  )
+  # ── Why there is no export(EXPORT ...) here ───────────────────────────────
+  # There used to be one, describing this same target set against the build tree
+  # so a consumer could point CMAKE_PREFIX_PATH at a build directory. It was
+  # removed (#29), and it must not come back, because it cannot survive being
+  # copied into a project whose library links a dependency it did not build.
+  #
+  # export() enforces the same "every referenced target must be in an export
+  # set" rule as install(EXPORT), but against *build* export sets — the ones
+  # registered by export() itself. Plenty of dependencies register none: they
+  # ship install(EXPORT) rules and no export() call anywhere. Link one into this
+  # library and generation stops with
+  #
+  #   export called with target "<project>_lib" which requires target "<dep>"
+  #   that is not in any export set.
+  #
+  # The install side above does not fail on the same target, which is why this
+  # surprises: CMake finds <dep> in the install export set its own rules
+  # registered and quietly rewrites the reference to <dep>::<dep>. Only the
+  # build-tree path has nothing to find.
+  #
+  # It cannot be guarded, either — and that is worth stating, because "just skip
+  # the export when a dependency is missing" is the obvious next idea. The
+  # condition is not merely unqueryable (no property or command reports build
+  # export set membership); it is unexpressible at the point the decision has to
+  # be made. INTERFACE_LINK_LIBRARIES holds unevaluated generator expressions
+  # — $<LINK_ONLY:...>, $<BUILD_INTERFACE:...>, $<TARGET_NAME_IF_EXISTS:...> —
+  # that resolve during generation, after every line of CMake language has run.
+  #
+  # A fork that genuinely wants a build-tree package can put the missing
+  # dependency in a build export set itself, per dependency:
+  #
+  #   export(TARGETS <dep> NAMESPACE <dep>:: FILE ${CMAKE_BINARY_DIR}/<dep>Targets.cmake)
+  #
+  # That is boilerplate this file cannot write on anyone's behalf, and it is
+  # only half the job — a build-tree package also wants its own
+  # configure_package_config_file() call, because the one below computes
+  # PACKAGE_PREFIX_DIR for lib/cmake/<project>, three directories above a build
+  # dir. Sharing it is harmless only for as long as the config resolves nothing
+  # relative to itself.
+  #
+  # ⚠ Do not reach for export(TARGETS ... APPEND) to silence the error. APPEND
+  # mode does not complain about the missing target; it writes the reference as
+  # <project>::<dep> — a target in *this* project's namespace that nothing
+  # anywhere defines. A loud generate-time failure becomes a Targets file that
+  # is quietly wrong.
+  #
+  # For developing two projects side by side, use add_subdirectory() — same
+  # target spelling, no packaging involved, and example/consumer/ covers it.
 
   # ── Headers ───────────────────────────────────────────────────────────────
   # *.hpp only, which picks up the public header and the generated version
