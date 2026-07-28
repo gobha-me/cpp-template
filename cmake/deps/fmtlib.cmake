@@ -17,8 +17,17 @@ else ()
     # shadows theirs. Catch2 and argparse gate their own install rules on being
     # the top-level project and need no equivalent.
     #
-    # Relies on CMP0077 (NEW here, via cmake_minimum_required 3.28): a normal
-    # variable set before the subproject's option() call wins.
+    # OFF unconditionally is right *because fmt is linked into src/bin*, an
+    # executable, which is never exported. It is not the general answer: a
+    # dependency linked into the library needs the opposite, tracking this
+    # project's own install option, or install(EXPORT) cannot resolve it. Both
+    # cases, and why visibility is not the deciding factor, are written up in
+    # cmake/deps/catch2.cmake (the annotated recipe).
+    #
+    # Relies on CMP0077 being NEW under *fmt's* policy stack — a dependency's
+    # own cmake_minimum_required() resets it, so this project's 3.28 floor is
+    # not what decides it. fmt sets a high enough floor; a dependency that did
+    # not would ignore this line entirely.
     set(FMT_INSTALL OFF)
 
     include(FetchContent)

@@ -136,6 +136,15 @@ The recipe file alone does nothing — the list is the switch. A name on the lis
 with no recipe is a hard configure error; a recipe not on the list is inert. To
 remove a dependency, delete its name from the list; the file can stay.
 
+If the **library** links the new dependency — rather than the executable or the
+tests — it needs two more lines, because it becomes part of what this project
+exports: `set(<DEP>_INSTALL ${${PROJECT_NAME}_INSTALL})` in the recipe, and a
+`find_dependency(<dep>)` in `cmake/project-config.cmake.in`. Without the first,
+installing fails during generation; without the second, consumers get a package
+whose targets refer to something they cannot find. A `PRIVATE` link counts —
+visibility is not the test. The annotated recipe explains both, and
+`example/public-dep/` is a working example that is checked in CI.
+
 **Add a test**
 
 ```bash
@@ -219,8 +228,13 @@ Installs the library, `include/*.hpp`, the executable, and a package config at
 `<prefix>/lib/cmake/<project>/`. Build with `-D<PROJECT>_BUILD_BIN=OFF
 -D<PROJECT>_TESTS=OFF` for a library-only install.
 
-Two things worth knowing before you depend on it:
+Three things worth knowing before you depend on it:
 
+* The package exists **only in an install prefix**. Pointing
+  `CMAKE_PREFIX_PATH` at a build directory finds the config file that was
+  generated there and gets a directed refusal, not a package: this project
+  exports its targets at install time only. For side-by-side development use
+  `add_subdirectory` — same target name, no packaging in the way.
 * The version in the package config comes from `git describe` at configure time.
   A build with no reachable tags reports `0.0.0`, and a consumer's
   `find_package(<project> 1.2.3 CONFIG REQUIRED)` is then refused — correctly,
@@ -259,6 +273,9 @@ pull request, enforcing the "both compilers, always" rule:
 * two **consumer** jobs (one per compiler) building `example/consumer/` against
   this project three ways — the only coverage of the consumed, not-top-level
   path,
+* a **public dependency** job, which synthesises a fork whose library links a
+  fetched dependency and checks the install/export files survive it — the one
+  shape this project cannot exercise as itself,
 * plus a fast, dependency-free `version-parse-selftest` job.
 
 A change that only builds on one compiler turns that compiler's jobs red, so a

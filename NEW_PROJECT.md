@@ -47,11 +47,16 @@ What to do with each file:
 | `src/bin/main.cpp` | `AGENTS.md` | `.clangd`, `.gitignore` |
 | `src/lib/lib.cpp`, `include/lib.hpp` | `example/consumer/` (or delete it) | `cmake/toolchain/*`, `cmake/version*.cmake` |
 | | | `cmake/install.cmake`, `cmake/project-config.cmake.in` |
+| | | `example/public-dep/` (or delete it) |
 
 > The two install files name nothing project-specific — they build every name
 > out of `${PROJECT_NAME}`, which follows your directory. They are the reason
 > `find_package(<name> CONFIG)` works against your project without you writing
 > any packaging code.
+>
+> `cmake/project-config.cmake.in` is the one you may still need to *add* to —
+> one line per dependency your library links. See Step 3. `cmake/install.cmake`
+> stays untouched either way.
 
 - [ ] **Project name.** The default is the **directory name** (`CMakeLists.txt:17-23`).
       Either name the directory what you want the project called, or replace
@@ -173,6 +178,30 @@ What to do with each file:
 > reverse is fatal: a name on the list with no recipe file stops configuration
 > with a `FATAL_ERROR`.
 
+**If your library links a dependency** — as opposed to your executable or your
+tests — that dependency becomes part of what your project exports, and it needs
+three things rather than one. This is the single most common way a project built
+from this checklist fails the first time someone tries to consume it.
+
+- [ ] In the recipe's FetchContent branch:
+      `set(<DEP>_INSTALL ${${PROJECT_NAME}_INSTALL})`. Not a fixed `OFF` — that
+      is right only for a dependency of the executable. `OFF` here makes
+      `install(EXPORT)` fail during generation, because the dependency's target
+      is then in no export set.
+- [ ] In `cmake/project-config.cmake.in`, above the `include(...)` line:
+      `include(CMakeFindDependencyMacro)` and `find_dependency(<dep>)`. Without
+      it, `find_package` on your installed project reports imported targets that
+      are "referenced, but are missing".
+- [ ] Nothing in `cmake/install.cmake`. It stays verbatim.
+
+> A `PRIVATE` link counts. CMake records it on the exported target as
+> `$<LINK_ONLY:...>` — a consumer still has to link it — so "private" does not
+> mean "invisible to consumers". Judge by *what links it*, not by the keyword.
+>
+> `cmake/deps/catch2.cmake` writes all of this up, including the two policy and
+> install-directory traps. `example/public-dep/` is a runnable worked example:
+> it builds a fork exactly like the one described here.
+
 ---
 
 ## Step 4 — Prune the tests
@@ -220,6 +249,20 @@ What to do with each file:
   > nothing will ever depend on your library — drop the `consumer` jobs from
   > `.github/workflows/ci.yml` too, and be aware that nothing then exercises the
   > not-top-level path, where the install/export wiring lives.
+
+- [ ] **`example/public-dep/` — keep it if your library links a dependency.** It
+      synthesises a fork of your project that has one, and checks that the
+      install and export rules survive it (both halves of the Step 3 note
+      above). If your library links nothing, it is proving something you cannot
+      break, and deleting it is reasonable.
+
+  > It builds `example/consumer/` as its downstream project, so the two are a
+  > pair in that direction: delete `example/consumer/` and this harness stops
+  > working. It says so rather than failing obscurely.
+  >
+  > Deleting it means dropping the `public dependency` job from
+  > `.github/workflows/ci.yml`. Needs no rename — nothing in it refers to the
+  > demo namespace.
 
 - [ ] **Keep `test/30sanitizer-smoke/`.** It is the proof that the sanitizer
       toolchains are actually engaged rather than silently no-ops.
@@ -308,4 +351,5 @@ cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake \
   > life of the project.
 
 - [ ] Push, and confirm CI is green: 8 build/test jobs, `library disabled`,
-      two `consumer` jobs, and `version-parse-selftest`.
+      two `consumer` jobs, `public dependency`, and `version-parse-selftest`.
+      Minus whichever example harnesses you deleted in Step 4.

@@ -141,6 +141,27 @@ jobs:
           CXX: ${{ matrix.cxx }}
         run: example/consumer/verify.sh
 
+  # The one path this project cannot exercise as itself: a fork whose library
+  # links a FetchContent'd dependency into its own exported interface. Our
+  # library links nothing, so the harness synthesises such a fork and asserts
+  # that the install/export files survive being copied into it (#29).
+  #
+  # One compiler on purpose. The failure this guards against happens during
+  # CMake generation, before a translation unit is compiled, so a matrix would
+  # buy nothing; the per-compiler half of consuming this project is already
+  # covered by the two jobs above. Its own job rather than a step in those, so a
+  # red check names the cause without opening a log.
+  public-dep:
+    name: public dependency
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Consume a fork that has a public dependency
+        run: example/public-dep/verify.sh
+
   # Fast, dependency-free guard: the git-describe version parser self-test on its
   # own (no compiler, no network). It also runs inside every build job above via
   # ctest; this job gives quick, isolated feedback.
