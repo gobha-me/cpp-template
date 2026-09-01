@@ -21,6 +21,11 @@ correctly," not for any one downstream project.
   forced compiler in `cmake/toolchain/default.cmake`. Prefer clang? That's what
   `cmake/toolchain/clang.cmake` is for (opt-in, like the sanitizer toolchains).
 - **Catch2 v3** for tests, fetched via `FetchContent` (see `cmake/deps/`).
+- **Clang tooling is policy, not an editor preference.** Formatting is the
+  LLVM/Clang style with the small repository choices in `.clang-format`; both
+  formatting and static analysis are pinned to Clang 20.x by `tools/format.sh`
+  and `tools/lint.sh`, and CI runs both. `.clang-tidy` is deliberately curated
+  rather than enabling alias-heavy policy bundles that duplicate findings.
 - Dependencies: `find_package` first, `FetchContent` fallback, **100% CMake**
   (no conan/vcpkg). Keep it that way unless the maintainer asks.
 - **Deps are opt-in via a list, not the filesystem.** A recipe in `cmake/deps/`
@@ -58,6 +63,17 @@ correctly," not for any one downstream project.
   `undefined.cmake`. To add a configuration, add a file that `include()`s
   `default.cmake` and layers its flags — don't edit `default.cmake` to force a
   specific setup.
+- **Run the repository tools, not an editor approximation.** Use
+  `tools/format.sh --check` to verify and `tools/format.sh --fix` to rewrite all
+  tracked and not-yet-tracked C/C++ sources. Use `tools/lint.sh` for
+  clang-tidy; it creates a compile database in `build-tidy/` and analyzes
+  first-party targets only.
+  Suppress a clang-tidy finding only when the code cannot be made clearer:
+  `NOLINT(check-name) -- justification`, the corresponding `NOLINTNEXTLINE`
+  form, or a matched `NOLINTBEGIN` / `NOLINTEND` pair naming the exact checks
+  and carrying a justification. Bare suppressions, wildcard check groups,
+  unpaired/nested blocks, and unexplained waivers are rejected by
+  `tools/check_nolint.sh`.
 - **Library pattern** in `src/lib/`: a compiled `STATIC` lib by default
   (toggle `${PROJECT_NAME}_BUILD_LIB`), public API in `include/lib.hpp`, with the
   header-only (`INTERFACE`) variant shown commented. Flipping to `INTERFACE`
@@ -111,6 +127,9 @@ to write a test.
 ## How to verify a change (do this before opening a PR)
 
 ```bash
+tools/format.sh --check
+tools/lint.sh
+
 cmake -B build && cmake --build build && ctest --test-dir build --output-on-failure
 # and cross-compiler, since the template supports both:
 cmake -B build-clang -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/clang.cmake \
@@ -132,7 +151,8 @@ compiler is not done. (This is how the fmt-under-clang-20 breakage was caught �
 build on both, always.)
 
 CI (`.github/workflows/ci.yml`) enforces this on every push and pull request:
-GCC and Clang × {default, address, thread, undefined} toolchains, plus the
+Clang-format and clang-tidy 20, then GCC and Clang ×
+{default, address, thread, undefined} toolchains, plus the
 `library disabled`, `consumer` (×2 compilers), `public dependency` and
 `version-parse-selftest` jobs.
 A one-compiler change turns that compiler's jobs red, so the template can't rot

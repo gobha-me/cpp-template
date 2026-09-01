@@ -46,6 +46,7 @@ What to do with each file:
 | `LICENSE.md` | `README.md` | `.github/workflows/ci.yml` |
 | `src/bin/main.cpp` | `AGENTS.md` | `.clangd`, `.gitignore` |
 | `src/lib/lib.cpp`, `include/lib.hpp` | `example/consumer/` (or delete it) | `cmake/toolchain/*`, `cmake/version*.cmake` |
+| | | `.clang-format`, `.clang-tidy`, `tools/*.sh` |
 | | | `cmake/install.cmake`, `cmake/project-config.cmake.in` |
 | | | `example/public-dep/` (or delete it) |
 
@@ -94,6 +95,10 @@ What to do with each file:
       nothing project-specific; the project name comes from the checkout
       directory. Leave `fetch-depth: 0` alone or `git describe` stops finding
       tags and every build reports `0.0.0`.
+- [ ] **Keep the Clang tooling files.** `.clang-format`, `.clang-tidy` and the
+      three scripts in `tools/` are project-neutral and CI calls them directly.
+      Run `tools/format.sh --fix` after replacing the demo C++, then
+      `tools/lint.sh`; do not turn the quality job into an advisory check.
 
 ---
 
