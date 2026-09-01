@@ -7,6 +7,8 @@
 
 namespace pubdep {
 
-inline auto answer() -> int { return 42; }
+inline auto answer() -> int {
+  return 42;
+}
 
-}  // namespace pubdep
+} // namespace pubdep
