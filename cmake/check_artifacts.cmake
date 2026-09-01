@@ -196,9 +196,10 @@ report_a("A2" "demo library namespace \"template_lib\"" _h _r)
 _scan("Placeholder translation unit" ".*" _h _r)
 report_a("A3" "placeholder library source (src/lib/lib.cpp)" _h _r)
 
-# Targets the demo main's signature line, not argparse itself — a fork that
-# legitimately uses argparse must not be flagged for doing so.
-_scan("ArgumentParser program\\(PROGRAM_NAME\\.data\\(\\), fmt::format\\(" "^src/" _h _r)
+# Targets the demo main's project-name argument, not argparse itself — a fork
+# that legitimately uses argparse must not be flagged for doing so. Keep this
+# line-oriented: clang-format may split the constructor arguments.
+_scan("PROGRAM_NAME\\.data\\(\\)," "^src/bin/main\\.cpp$" _h _r)
 report_a("A4" "demo CLI in src/bin/main.cpp" _h _r)
 
 set(_h 0)

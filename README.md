@@ -108,8 +108,31 @@ Some features baked in, and the assumptions behind them:
     add a recipe file *and* its name to add one.
 * **Export of the compile database** (`compile_commands.json`) is enabled by
   default.
+* **Opinionated Clang tooling** — `.clang-format` starts from LLVM's Clang
+  style, while `.clang-tidy` selects a focused set of analyzer, bug-prone,
+  performance, portability and low-churn modernization checks without stacking
+  overlapping policy aliases. Both are pinned to version 20 and enforced in CI.
 
 ## Cheat sheet
+
+**Format and lint**
+
+```bash
+tools/format.sh --check   # verify tracked and new C/C++ files
+tools/format.sh --fix     # rewrite them with clang-format 20
+tools/lint.sh             # configure build-tidy/ and run clang-tidy 20
+```
+
+The scripts reject another Clang major so local and CI results stay identical.
+Override executable names with `CLANG_FORMAT`, `CLANG_TIDY`,
+`RUN_CLANG_TIDY`, or `CLANGXX` when a versioned binary lives elsewhere; use
+`PROJECT_TIDY_BUILD_DIR` and `PROJECT_TIDY_JOBS` to tune the analysis run.
+
+Treat a clang-tidy suppression as a reviewable exception. It must name exact
+checks and explain why, for example
+`NOLINTNEXTLINE(bugprone-use-after-move) -- false positive: state reset above`.
+Direct and matched block forms are also accepted; bare, wildcard, unexplained,
+nested, or unpaired suppressions fail `tools/check_nolint.sh` and CI.
 
 **Configure, build, test — and picking a toolchain**
 
@@ -267,6 +290,7 @@ tree; both land in `include/version.hpp`.
 `.github/workflows/ci.yml` builds and tests on every push to `main` and every
 pull request, enforcing the "both compilers, always" rule:
 
+* **clang-format 20 and clang-tidy 20**, including the suppression-policy check,
 * **GCC and Clang** ×
 * the **default** toolchain plus every sanitizer (**address**, **thread**,
   **undefined**) — 8 build/test jobs in all,

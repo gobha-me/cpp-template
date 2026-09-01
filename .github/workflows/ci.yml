@@ -24,6 +24,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # One canonical formatting/static-analysis gate. Keeping this separate from
+  # the compiler matrix avoids running clang-tidy eight times while still making
+  # the repository policy mandatory for every push and pull request.
+  quality:
+    name: formatting and static analysis
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Clang tooling
+        env:
+          CLANG_VERSION: "20"
+        run: |
+          wget -qO /tmp/llvm.sh https://apt.llvm.org/llvm.sh
+          chmod +x /tmp/llvm.sh
+          sudo /tmp/llvm.sh "$CLANG_VERSION"
+          sudo apt-get install -y "clang-format-$CLANG_VERSION" "clang-tidy-$CLANG_VERSION"
+
+      - name: Check formatting
+        run: tools/format.sh --check
+
+      - name: Run static analysis
+        run: tools/lint.sh
+
   build:
     name: ${{ matrix.name }}
     runs-on: ubuntu-24.04   # ships GCC 13 + Clang (both C++23-capable); pinned for reproducibility

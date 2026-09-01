@@ -4,7 +4,9 @@
 #include <version.hpp>
 
 auto main(int argc, char** argv) -> int {
-  argparse::ArgumentParser program(PROGRAM_NAME.data(), fmt::format("{}.{}.{}", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH));
+  argparse::ArgumentParser program(
+      PROGRAM_NAME.data(),
+      fmt::format("{}.{}.{}", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH));
 
   try {
     program.parse_args(argc, argv);
